@@ -59,6 +59,15 @@ namespace dc
 		}
 
 		template<typename T>
+		CConnection<ReturnType(Args...)>
+		Connect(T* ptr, ReturnType (T::* function) (Args...) const)
+		{
+			CConnection<ReturnType(Args...)> connection(this, ptr, function);
+			m_connections.push_front(connection);
+			return connection;
+		}
+
+		template<typename T>
 		void Disconnect(T& ref)
 		{
 			for (const auto& connection : m_connections)
@@ -96,7 +105,7 @@ namespace dc
 				}
 			}
 		}
-		
+
 		void Disconnect(CConnection<ReturnType(Args...)>& connection)
 		{
 			m_connections.remove(connection);

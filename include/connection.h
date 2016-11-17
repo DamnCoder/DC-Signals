@@ -31,28 +31,31 @@ namespace dc
 	template <typename ReturnType, typename... Args>
 	class CConnection<ReturnType(Args...)>
 	{
+		friend class CSignal<ReturnType(Args...)>;
 	protected:
 		// Generic types for functions
 		using TMemberFunctionPtr = ReturnType (GenericClass::*)(Args...);
 		using TFunctionPtr = ReturnType (*)(Args...);
+		
+	public:
+		const bool IsConnected() const
+		{
+			// m_pFunction not necessarily needs to be checked
+			return m_pBindedSignal && m_pCaller && m_pMemberFunction;
+		}
 	
 	public:
-		CConnection():
-			m_pBindedSignal(0),
-			m_pCaller(0),
-			m_pMemberFunction(0),
-			m_pFunction(0)
-		{}
-		//*
 		template <typename T>
-		CConnection(CSignal<ReturnType(Args...)>* signal, T& ref)
+		CConnection(CSignal<ReturnType(Args...)>* signal, T& ref):
+			m_pBindedSignal(signal)
 		{
 			m_pFunction = reinterpret_cast<TFunctionPtr>(std::addressof(ref));
 			Bind(this, &CConnection::InvokeStaticFunctionPtr<T>);
 		}
 		
 		template <typename T>
-		CConnection(CSignal<ReturnType(Args...)>* signal, T* ptr)
+		CConnection(CSignal<ReturnType(Args...)>* signal, T* ptr):
+			m_pBindedSignal(signal)
 		{
 			m_pFunction = reinterpret_cast<TFunctionPtr>(ptr);
 			Bind(this, &CConnection::InvokeFunctionPtr);
@@ -60,6 +63,7 @@ namespace dc
 		
 		template <typename TInstance, typename TMemberFunction>
 		CConnection(CSignal<ReturnType(Args...)>* signal, TInstance* instance, TMemberFunction function):
+			m_pBindedSignal(signal),
 			m_pFunction(0)
 		{
 			Bind(instance, function);
@@ -90,49 +94,35 @@ namespace dc
 		inline
 		void Disconnect()
 		{
-			m_pBindedSignal->Disconnect(this);
+			// We need to dereference ourselves to properly use the disconnection
+			m_pBindedSignal->Disconnect(*this);
 			Clear();
 		}
-		
-		template <typename TInstance, typename TMemberFunction>
-		const bool Equals(TInstance* instance, TMemberFunction function) const
-		{
-			return m_pCaller == reinterpret_cast<GenericClass *>(instance) && m_pMemberFunction == reinterpret_cast<TMemberFunctionPtr>(function) && m_pFunction == 0;
-		}
-		
-		template <typename T>
-		const bool Equals(T& reference) const
-		{
-			return Equals(std::addressof(reference));
-		}
-		
-		template <typename T>
-		const bool Equals(T* pointer) const
-		{
-			return m_pFunction == reinterpret_cast<TFunctionPtr>(pointer);
-		}
-		
+
+		inline
 		const bool operator== (const CConnection<ReturnType(Args...)>& connection) const
 		{
-			if(this == &connection)
-				return true;
-			
-			return m_pCaller == connection.m_pCaller && m_pFunction == connection.m_pFunction && m_pMemberFunction == connection.m_pMemberFunction;
+			return m_pBindedSignal == connection.m_pBindedSignal
+				&& m_pCaller == connection.m_pCaller
+				&& m_pFunction == connection.m_pFunction
+				&& m_pMemberFunction == connection.m_pMemberFunction;
 		}
 		
-		// for efficiency, prevent creation of a temporary
-		void operator = (const CConnection<ReturnType(Args...)>& connection)
+		// For efficiency, prevent creation of a temporary
+		inline
+		void operator= (const CConnection<ReturnType(Args...)>& connection)
 		{
 			this(connection);
 		}
 		
+	private:
+		inline
 		ReturnType operator() (Args... args) const
 		{
 			// Here is the reason why we need 'm_pCaller' to be of a generic class type, so it is compatible with the right hand operand '->*'
 			return (m_pCaller->*m_pMemberFunction)(args...);
 		}
 		
-	private:
 		template <typename TInstance, typename TMemberFunction>
 		inline
 		void Bind(TInstance* instance, TMemberFunction function)
@@ -143,18 +133,42 @@ namespace dc
 			m_pCaller = reinterpret_cast<GenericClass *>(instance);
 		}
 		
+		template <typename TInstance, typename TMemberFunction>
+		inline
+		const bool Equals(TInstance* instance, TMemberFunction function) const
+		{
+			return m_pCaller == reinterpret_cast<GenericClass *>(instance) && m_pMemberFunction == reinterpret_cast<TMemberFunctionPtr>(function) && m_pFunction == 0;
+		}
+		
+		template <typename T>
+		inline
+		const bool Equals(T& reference) const
+		{
+			return Equals(std::addressof(reference));
+		}
+		
+		template <typename T>
+		inline
+		const bool Equals(T* pointer) const
+		{
+			return m_pFunction == reinterpret_cast<TFunctionPtr>(pointer);
+		}
+		
 		template< typename T>
+		inline
 		ReturnType InvokeStaticFunctionPtr(Args... args) const
 		{
 			return (reinterpret_cast<T*>(m_pFunction)->operator())(args...);
 		}
 
+		inline
 		ReturnType InvokeFunctionPtr(Args... args) const
 		{
 			// NOTE!! Very important to have the * when calling the m_pFunction
 			return (*m_pFunction)(args...);
 		}
 		
+		inline
 		void Clear()
 		{
 			m_pBindedSignal = 0;
