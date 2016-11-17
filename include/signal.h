@@ -14,49 +14,20 @@
 
 namespace dc
 {
-	template<typename T>
-	class CBackwardsList
-	{
-		
-	};
-	
-	template<typename ReturnType> class CSignal;
+	//template<typename ReturnType>
+	//class CSignal;
 
 	template<typename ReturnType, typename... Args>
 	class CSignal<ReturnType(Args...)>
 	{
-	private:
-		
-		template<typename T>
-		static CConnection<ReturnType(Args...)>
-		MakeConnection(T& slot)
-		{
-			CConnection<ReturnType(Args...)> connection;
-			connection.Bind(slot);
-			return connection;
-		}
-		
-		template<typename T>
-		static CConnection<ReturnType(Args...)>
-		MakeConnection(T* slot)
-		{
-			CConnection<ReturnType(Args...)> connection;
-			connection.Bind(slot);
-			return connection;
-		}
-		
-		template<typename T>
-		static CConnection<ReturnType(Args...)>
-		MakeConnection(T* ptr, ReturnType (T::* function) (Args...))
-		{
-			CConnection<ReturnType(Args...)> connection;
-			connection.Bind(ptr, function);
-			return connection;
-		}
-		
+	
 	public:
 		CSignal() {}
-		~CSignal() {}
+		
+		~CSignal()
+		{
+			Clear();
+		}
 
 	public:
 		
@@ -64,7 +35,7 @@ namespace dc
 		CConnection<ReturnType(Args...)>
 		Connect(T& slotRef)
 		{
-			CConnection<ReturnType(Args...)> connection = MakeConnection(slotRef);
+			CConnection<ReturnType(Args...)> connection(this, slotRef);
 			m_connections.push_front(connection);
 			return connection;
 		}
@@ -73,7 +44,7 @@ namespace dc
 		CConnection<ReturnType(Args...)>
 		Connect(T* slotPtr)
 		{
-			CConnection<ReturnType(Args...)> connection = MakeConnection(slotPtr);
+			CConnection<ReturnType(Args...)> connection(this, slotPtr);
 			m_connections.push_front(connection);
 			return connection;
 		}
@@ -82,7 +53,7 @@ namespace dc
 		CConnection<ReturnType(Args...)>
 		Connect(T* ptr, ReturnType (T::* function) (Args...))
 		{
-			CConnection<ReturnType(Args...)> connection = MakeConnection(ptr, function);
+			CConnection<ReturnType(Args...)> connection(this, ptr, function);
 			m_connections.push_front(connection);
 			return connection;
 		}
@@ -136,17 +107,15 @@ namespace dc
 			m_connections.remove(connection);
 		}
 		
-		void Disconnect()
+		void Clear()
 		{
 			m_connections.clear();
 		}
 		
 		void operator() (Args&&... args) const
 		{
-			unsigned int index = 0;
 			for(const CConnection<ReturnType(Args...)>& connection : m_connections)
 			{
-				printf("Emit %d\n", ++index);
 				connection(std::forward<Args>(args)...);
 			}
 		}
