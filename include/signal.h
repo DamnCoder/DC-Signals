@@ -9,18 +9,27 @@
 #define DC_SIGNALS_SIGNAL_H_
 
 #import <forward_list>
+#import <vector>
 
 #import "connection.h"
 
 namespace dc
 {
-	//template<typename ReturnType>
-	//class CSignal;
-
 	template<typename ReturnType, typename... Args>
 	class CSignal<ReturnType(Args...)>
 	{
-	
+		
+	public:
+		const bool IsEmpty() const
+		{
+			return ConnectionsCount() == 0;
+		}
+		
+		const long ConnectionsCount() const
+		{
+			return std::distance(m_connections.begin(), m_connections.end());
+		}
+	 
 	public:
 		CSignal() {}
 		
@@ -60,9 +69,20 @@ namespace dc
 
 		template<typename T>
 		CConnection<ReturnType(Args...)>
-		Connect(T* ptr, ReturnType (T::* function) (Args...) const)
+		Connect(T* caller, ReturnType (T::* function) (Args...) const)
 		{
-			CConnection<ReturnType(Args...)> connection(this, ptr, function);
+			CConnection<ReturnType(Args...)> connection(this, caller, function);
+			m_connections.push_front(connection);
+			return connection;
+		}
+		
+		template<typename T>
+		CConnection<ReturnType(Args...)>
+		Connect(const T* caller, ReturnType (T::* function) (Args...) const)
+		{
+			// Since we know that the member function is const, it's safe to
+			// remove the const qualifier from the 'caller' pointer with a const_cast.
+			CConnection<ReturnType(Args...)> connection(this, const_cast<T*>(caller), function);
 			m_connections.push_front(connection);
 			return connection;
 		}
@@ -105,6 +125,27 @@ namespace dc
 				}
 			}
 		}
+		
+		template<typename T>
+		void Disconnect(T* ptr, ReturnType (T::* function) (Args...) const)
+		{
+			for (const auto& connection : m_connections)
+			{
+				if(connection.Equals(ptr, function))
+				{
+					Disconnect(connection);
+					return;
+				}
+			}
+		}
+		
+		template<typename T>
+		void Disconnect(const T* ptr, ReturnType (T::* function) (Args...) const)
+		{
+			// Since we know that the member function is const, it's safe to
+			// remove the const qualifier from the 'caller' pointer with a const_cast.
+			Disconnect(const_cast<T*>(ptr), function);
+		}
 
 		void Disconnect(CConnection<ReturnType(Args...)>& connection)
 		{
@@ -121,12 +162,24 @@ namespace dc
 			m_connections.clear();
 		}
 		
-		void operator() (Args&&... args) const
+		const bool operator() (Args&&... args) const
 		{
 			for(const CConnection<ReturnType(Args...)>& connection : m_connections)
 			{
 				connection(std::forward<Args>(args)...);
 			}
+			return true;
+		}
+		
+		/*operator()*/
+		const std::vector<ReturnType> EmitReturningValues (Args&&... args) const
+		{
+			std::vector<ReturnType> returnValues(ConnectionsCount());
+			for(const CConnection<ReturnType(Args...)>& connection : m_connections)
+			{
+				returnValues.push_back(connection(std::forward<Args>(args)...));
+			}
+			return returnValues;
 		}
 		
 	private:

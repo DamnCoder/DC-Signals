@@ -19,11 +19,9 @@ namespace dc
 	
 	// GenericClass is a fake class, ONLY used to provide a type.
 	class GenericClass;
-	
-	// The size of a single inheritance member function pointer.
-	const int SINGLE_MEMFUNCPTR_SIZE = sizeof(void (GenericClass::*)());
 
-	template<typename ReturnType> class CConnection;
+	template<typename ReturnType>
+	class CConnection;
 	
 	/**
 	 * Base class for connections. Its purpose is to act as an wrapper for all the callbacks
@@ -40,11 +38,36 @@ namespace dc
 	public:
 		const bool IsConnected() const
 		{
-			// m_pFunction not necessarily needs to be checked
+			if(m_pBindedSignal && m_pCaller && m_pMemberFunction && m_pFunction)
+				return true;
+			
+			// m_pFunction is not zero only when you connect a free or static function
 			return m_pBindedSignal && m_pCaller && m_pMemberFunction;
 		}
 	
 	public:
+		CConnection(const CConnection<ReturnType(Args...)>& copy)
+		{
+			m_pBindedSignal = copy.m_pBindedSignal;
+			if(copy.m_pFunction)
+			{
+				m_pFunction = copy.m_pFunction;
+				Bind(this, copy.m_pMemberFunction);
+			}
+			else
+			{
+				m_pCaller = copy.m_pCaller;
+				m_pMemberFunction = copy.m_pMemberFunction;
+				m_pFunction = 0;
+			}
+		}
+		
+		~CConnection()
+		{
+			Clear();
+		}
+		
+	private:
 		template <typename T>
 		CConnection(CSignal<ReturnType(Args...)>* signal, T& ref):
 			m_pBindedSignal(signal)
@@ -69,27 +92,6 @@ namespace dc
 			Bind(instance, function);
 		}
 		
-		CConnection(const CConnection<ReturnType(Args...)>& copy)
-		{
-			m_pBindedSignal = copy.m_pBindedSignal;
-			if(copy.m_pFunction)
-			{
-				m_pFunction = copy.m_pFunction;
-				Bind(this, copy.m_pMemberFunction);
-			}
-			else
-			{
-				m_pCaller = copy.m_pCaller;
-				m_pMemberFunction = copy.m_pMemberFunction;
-				m_pFunction = 0;
-			}
-		}
-		
-		~CConnection()
-		{
-			Clear();
-		}
-		
 	public:
 		inline
 		void Disconnect()
@@ -102,8 +104,10 @@ namespace dc
 		inline
 		const bool operator== (const CConnection<ReturnType(Args...)>& connection) const
 		{
+			if(this == &connection) return true;
+			if(m_pCaller == connection.m_pCaller) return true;
+			
 			return m_pBindedSignal == connection.m_pBindedSignal
-				&& m_pCaller == connection.m_pCaller
 				&& m_pFunction == connection.m_pFunction
 				&& m_pMemberFunction == connection.m_pMemberFunction;
 		}
@@ -129,15 +133,24 @@ namespace dc
 		{
 			// We are casting the type of 'function' to the generic type TMemberFunctionPtr
 			// so we don't need to keep the original type TInstance
-			m_pMemberFunction = reinterpret_cast<TMemberFunctionPtr>(function);
 			m_pCaller = reinterpret_cast<GenericClass *>(instance);
+			m_pMemberFunction = reinterpret_cast<TMemberFunctionPtr>(function);
 		}
 		
-		template <typename TInstance, typename TMemberFunction>
+		template <typename T, typename TMemberFunction>
 		inline
-		const bool Equals(TInstance* instance, TMemberFunction function) const
+		const bool Equals(T* caller, TMemberFunction function) const
 		{
-			return m_pCaller == reinterpret_cast<GenericClass *>(instance) && m_pMemberFunction == reinterpret_cast<TMemberFunctionPtr>(function) && m_pFunction == 0;
+			return m_pCaller == reinterpret_cast<GenericClass *>(caller) && m_pMemberFunction == reinterpret_cast<TMemberFunctionPtr>(function) && m_pFunction == 0;
+		}
+		
+		template <typename T, typename TMemberFunction>
+		inline
+		const bool Equals(const T* caller, TMemberFunction function) const
+		{
+			return m_pCaller == reinterpret_cast<GenericClass *>(const_cast<T*>(caller))
+				&& m_pMemberFunction == reinterpret_cast<TMemberFunctionPtr>(function)
+				&& m_pFunction == 0;
 		}
 		
 		template <typename T>
