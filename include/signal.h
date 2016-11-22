@@ -171,15 +171,15 @@ namespace dc
 			return true;
 		}
 		
-		/*operator()*/
-		const std::vector<ReturnType> EmitReturningValues (Args&&... args) const
+		template<typename TArray>
+		const bool operator() (TArray& valuesArray, Args&&... args) const
 		{
-			std::vector<ReturnType> returnValues(ConnectionsCount());
+			int index = 0;
 			for(const CConnection<ReturnType(Args...)>& connection : m_connections)
 			{
-				returnValues.push_back(connection(std::forward<Args>(args)...));
+				valuesArray[index++] = connection(std::forward<Args>(args)...);
 			}
-			return returnValues;
+			return true;
 		}
 		
 	private:
