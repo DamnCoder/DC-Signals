@@ -8,8 +8,10 @@
 #ifndef SIGNAL_TESTS_H_
 #define SIGNAL_TESTS_H_
 
+#include <utility>
 #include <functional>
 #include <assert.h>
+#include <stdio.h>
 
 #include "signal.h"
 

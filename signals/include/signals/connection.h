@@ -8,8 +8,8 @@
 #ifndef DC_SIGNALS_CONNECTION_H_
 #define DC_SIGNALS_CONNECTION_H_
 
-
-#import <functional>
+#include <functional>
+#include <memory>
 
 namespace dc
 {
@@ -87,6 +87,8 @@ namespace dc
 		template <typename TInstance, typename TMemberFunction>
 		CConnection(CSignal<ReturnType(Args...)>* signal, TInstance* instance, TMemberFunction function):
 			m_pBindedSignal(signal),
+			m_pCaller(0),
+			m_pMemberFunction(0),
 			m_pFunction(0)
 		{
 			Bind(instance, function);

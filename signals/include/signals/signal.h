@@ -8,10 +8,12 @@
 #ifndef DC_SIGNALS_SIGNAL_H_
 #define DC_SIGNALS_SIGNAL_H_
 
-#import <forward_list>
-#import <vector>
+#include <forward_list>
+#include <vector>
+#include <iterator>
+#include <utility>
 
-#import "connection.h"
+#include "connection.h"
 
 namespace dc
 {
