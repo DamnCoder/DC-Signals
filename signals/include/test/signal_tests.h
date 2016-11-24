@@ -339,7 +339,7 @@ void SimpleTestHowToUseIt()
 	
 	printf("+ EMITTING THE SIGNAL AFTER CONNECTING\n");
 	// Emission of signal
-	signal("Hola");
+	signal("Hello world!");
 	
 	// Disconnecting binded functions
 	// - with no parameter binded
