@@ -18,7 +18,7 @@ Example from nano-signal-slot:
 
 ``` cpp
 Nano::Signal<bool(const char*)> signal_one;
-signal_one.disconnect<Foo, &Foo::handler_a>(foo);
+signal_one.connect<Foo, &Foo::handler_a>(foo);
 ```
 
 So I have mixed the best things of both. It has also being built imitating the way [signals2][boost_signals2] is used within the boost library (everytime you make a connection it returns a CConnection and you can use that connection to disconect it from the signal).
@@ -174,15 +174,20 @@ The problems mainly come because we don't want to indicate the type of the class
 
 ``` cpp
 dc:CSignal<void(const bool, const char*)> signal;
+signal.Connect(&instance, &ArbitraryMemberFunction);
 ```
 
-So the idea is to cast the callers to a common `GenericClass*` and the functions to a `GenericClass::*` member function. The tricky part comes in the cases of *binded functions, lambdas, functors, and with free and static functions*, where we also need to keep the function apart.
+So the idea is to cast the callers to a common `GenericClass*` and the functions to a `GenericClass::*` member function. The tricky part comes in the cases of *binded functions, lambdas, functors, and with free and static functions*, where we also need to keep the function pointer apart.
 
 ### Member functions
 
 Member functions are the easiest to keep. We use `reinterpret_cast` to adapt their types so we are able to assign the caller instance and the member function without indicating the type of the class.
 
 You can't cast a member function and transform it to a function pointer, but you can cast from a member function into a member function of another class. 
+
+Quoting the word of Don Clugston in his implementation of fast delegates where I took this idea:
+
+> Here's the clever bit: we convert an arbitrary member function into a standard form. TMemberFunction should be a member function of class GenericClass[...]. [*Line 732 of Delegate.h*] [fast_delegates_header]
 
 ``` cpp
 template <typename ReturnType, typename... Args>
@@ -288,3 +293,5 @@ class CConnection<ReturnType(Args...)>
 [mit_license]: https://opensource.org/licenses/mit-license.php "MIT License page"
 [dc_signals_repo_folder]: https://github.com/DamnCoder/DC-Signals/tree/master/signals/include/signals "DC-Signal signals folder" 
 [dc_signals_repo_test_file]: https://github.com/DamnCoder/DC-Signals/blob/master/signals/include/test/signal_tests.h "DC-Signal tests file"
+
+[fast_delegates_header]: https://github.com/pbhogan/Signals/blob/master/Delegate.h "Github Delegate.h"
