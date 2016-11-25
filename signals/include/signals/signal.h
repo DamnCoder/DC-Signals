@@ -3,6 +3,10 @@
  *
  *  Created on: 9 de oct. de 2016
  *      Author: jorge
+ * 
+ * Based on the code from:
+ * - pbhogan ()
+ * - NoAvailableAlias ()
  */
 
 #ifndef DC_SIGNALS_SIGNAL_H_
@@ -62,9 +66,9 @@ namespace dc
 
 		template<typename T>
 		CConnection<ReturnType(Args...)>
-		Connect(T* ptr, ReturnType (T::* function) (Args...))
+		Connect(T* caller, ReturnType (T::* function) (Args...))
 		{
-			CConnection<ReturnType(Args...)> connection(this, ptr, function);
+			CConnection<ReturnType(Args...)> connection(this, caller, function);
 			m_connections.push_front(connection);
 			return connection;
 		}

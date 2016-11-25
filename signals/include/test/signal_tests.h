@@ -89,7 +89,7 @@ void TestFunction()
 	printf("Yeah! It's me! A function!\n");
 }
 
-const bool FreeFunctionReturn()
+const bool FreeFunctionReturnBool()
 {
 	printf("Free function returning false\n");
 	return false;
@@ -301,9 +301,10 @@ public:
 	}
 };
 
-void SimpleTestHowToUseIt()
+const bool SimpleTestHowToUseIt()
 {
-	printf("+ INIT DISCONNECTING TEST\n");
+	printf("+ INIT HOW TO USE IT TEST\n");
+	bool succeed = true;
 	
 	Foo foo;
 	
@@ -318,15 +319,6 @@ void SimpleTestHowToUseIt()
 	auto functionBindedWithParams = std::bind(&Foo::PrintString, &foo, "Binded string");
 	signal.Connect(functionBindedWithParams);
 	
-	// Connecting member function
-	signal.Connect(&foo, &Foo::PrintString);
-	
-	// Connecting static function
-	signal.Connect(&Foo::StaticPrintString);
-	
-	// Connecting free function
-	signal.Connect(&FreeFunctionPrintString);
-	
 	// Connecting lambda
 	std::function<void(const char*)> stdFunctionParameter = [](const char* message){
 		printf("The std::function message: %s\n", message);
@@ -337,9 +329,24 @@ void SimpleTestHowToUseIt()
 	TActionFunctor functor;
 	signal.Connect(functor);
 	
+	// Connecting static function
+	signal.Connect(&Foo::StaticPrintString);
+	
+	// Connecting free function
+	signal.Connect(&FreeFunctionPrintString);
+	
+	// Connecting member function
+	signal.Connect(&foo, &Foo::PrintString);
+	
+	// Connecting const member function
+	signal.Connect(&foo, &Foo::PrintStringConst);
+	
+	succeed &= signal.ConnectionsCount() == 8;
+	
 	printf("+ EMITTING THE SIGNAL AFTER CONNECTING\n");
+	
 	// Emission of signal
-	signal("Hello world!");
+	succeed &= signal("Hello world!");
 	
 	// Disconnecting binded functions
 	// - with no parameter binded
@@ -363,37 +370,78 @@ void SimpleTestHowToUseIt()
 	// Disconnecting Functor
 	signal.Disconnect(functor);
 	
+	// Disconnecting const member function
+	signal.Disconnect(&foo , &Foo::PrintStringConst);
+	
+	succeed &= signal.ConnectionsCount() == 0;
+	
 	// Emission of signal
 	printf("+ EMITTING THE SIGNAL AFTER DISCONNECTING\n");
-	signal("Hello");
-	printf("- END DISCONNECTING TEST\n");
+	
+	succeed &= signal("Hello");
+	
+	printf("- END HOW TO USE IT TEST\n");
 
+	assert("[ERROR] SimpleTestHowToUseIt failed" && succeed);
+	
+	return succeed;
 }
 
-void SimpleTestHowToRecoverValues()
+const bool SimpleTestHowToRecoverValues()
 {
+	printf("+ INIT HOW TO RECOVER VALUES TEST\n");
+	
+	bool succeed = true;
+	
+	const bool expectedValuesArray[] = { true, false, false};
+	
 	Foo foo;
 	
 	dc::CSignal<const bool(void)> signal;
-	signal.Connect(&FreeFunctionReturn);
+	
+	signal.Connect(&FreeFunctionReturnBool);
 	signal.Connect(&Foo::StaticFunctionReturnBool);
 	signal.Connect(&foo, &Foo::MemberFunctionReturnBool);
 	
+	// Using an std::vector
 	std::vector<bool> valuesVector(signal.ConnectionsCount());
-	signal(valuesVector);
-	for(bool value : valuesVector)
-	{
-		printf("Returning value was %s\n", value ? "true" : "false");
-	}
+	
+	succeed &= signal(valuesVector);
 	
 	const long valuesCount = signal.ConnectionsCount();
-	bool* valuesArray = new bool[valuesCount];
-	signal(valuesArray);
+	
 	for(int i=0; i<valuesCount; ++i)
 	{
-		const bool value = valuesArray[i];
-		printf("Returning value was %s\n", value ? "true" : "false");
+		const bool returnedValue = valuesVector[i];
+		const bool expectedValue = expectedValuesArray[i];
+		
+		succeed &= (returnedValue == expectedValue);
+		
+		printf("Returning value was %s\n", returnedValue ? "true" : "false");
 	}
+	
+	// Using an array
+	bool* valuesArray = new bool[valuesCount];
+	
+	succeed &= signal(valuesArray);
+	
+	for(int i=0; i<valuesCount; ++i)
+	{
+		const bool returnedValue = valuesArray[i];
+		const bool expectedValue = expectedValuesArray[i];
+		
+		succeed &= (returnedValue == expectedValue);
+		
+		printf("Returning value was %s\n", returnedValue ? "true" : "false");
+	}
+	
+	delete [] valuesArray;
+	
+	assert("[ERROR] SimpleTestHowToUseIt failed" && succeed);
+	
+	printf("- END HOW TO RECOVER VALUES TEST\n");
+	
+	return succeed;
 }
 
 void TestDCSignal()
@@ -451,7 +499,8 @@ void TestDCSignal()
 	succeed &= signalTests.ConnectingMemberFunction(&fooConst, &Foo::PrintStringConst, "Message for const caller and const member function");
 	succeed &= signalTests.DisconnectingMemberFunction(&fooConst, &Foo::PrintStringConst);
 	
-	SimpleTestHowToRecoverValues();
+	succeed &= SimpleTestHowToUseIt();
+	succeed &= SimpleTestHowToRecoverValues();
 	
 	if(succeed)
 	{
