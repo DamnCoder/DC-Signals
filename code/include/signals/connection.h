@@ -93,6 +93,7 @@ namespace dc
 		}
 		
 	private:
+
 		template <typename T>
 		CConnection(CSignal<ReturnType(Args...)>* signal, T& ref):
 			m_pBindedSignal(signal),
@@ -216,16 +217,16 @@ namespace dc
 		// Used when we want to call back binded functions, lambdas and functors
 		template< typename T>
 		inline
-		ReturnType InvokeTemplatizedFunctionPtr(Args... args) const
+		ReturnType InvokeTemplatizedFunctionPtr(Args&&... args) const
 		{
-			return (reinterpret_cast<T*>(m_pFunction)->operator())(args...);
+			return (reinterpret_cast<T*>(m_pFunction)->operator())(std::forward<Args>(args)...);
 		}
 
 		// Used when we want to call back free or static functions
 		inline
-		ReturnType InvokeFunctionPtr(Args... args) const
+		ReturnType InvokeFunctionPtr(Args&&... args) const
 		{
-			return (*m_pFunction)(args...);
+			return (*m_pFunction)(std::forward<Args>(args)...);
 		}
 		
 		inline

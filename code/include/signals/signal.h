@@ -42,7 +42,15 @@ namespace dc
 	template<typename ReturnType, typename... Args>
 	class CSignal<ReturnType(Args...)>
 	{
+		//------------------------------------------------------------------------------------------------------------------------
+		// Type definitions
+		//------------------------------------------------------------------------------------------------------------------------
+	public:
+		using TConnection = CConnection<ReturnType(Args...)>;
 		
+		//------------------------------------------------------------------------------------------------------------------------
+		// Getters / Setters
+		//------------------------------------------------------------------------------------------------------------------------
 	public:
 		const bool IsEmpty() const
 		{
@@ -54,18 +62,35 @@ namespace dc
 			return std::distance(m_connections.begin(), m_connections.end());
 		}
 	 
+		//------------------------------------------------------------------------------------------------------------------------
+		// Constructors / Destructors
+		//------------------------------------------------------------------------------------------------------------------------
 	public:
 		CSignal() {}
+		
+		CSignal(const CSignal<ReturnType(Args...)>& copy) : m_connections(copy.m_connections)
+		{}
 		
 		~CSignal()
 		{
 			Clear();
 		}
 
+		//------------------------------------------------------------------------------------------------------------------------
+		// Functions
+		//------------------------------------------------------------------------------------------------------------------------
 	public:
+		template <typename T>
+		TConnection
+		Connect(const T& slotRef)
+		{
+			CConnection<ReturnType(Args...)> connection(this, const_cast<T&>(slotRef));
+			m_connections.push_front(connection);
+			return connection;
+		}
 		
 		template <typename T>
-		CConnection<ReturnType(Args...)>
+		TConnection
 		Connect(T& slotRef)
 		{
 			CConnection<ReturnType(Args...)> connection(this, slotRef);
@@ -74,7 +99,7 @@ namespace dc
 		}
 
 		template <typename T>
-		CConnection<ReturnType(Args...)>
+		TConnection
 		Connect(T* slotPtr)
 		{
 			CConnection<ReturnType(Args...)> connection(this, slotPtr);
@@ -83,7 +108,7 @@ namespace dc
 		}
 
 		template<typename T>
-		CConnection<ReturnType(Args...)>
+		TConnection
 		Connect(T* caller, ReturnType (T::* function) (Args...))
 		{
 			CConnection<ReturnType(Args...)> connection(this, caller, function);
@@ -92,7 +117,7 @@ namespace dc
 		}
 
 		template<typename T>
-		CConnection<ReturnType(Args...)>
+		TConnection
 		Connect(T* caller, ReturnType (T::* function) (Args...) const)
 		{
 			CConnection<ReturnType(Args...)> connection(this, caller, function);
@@ -101,7 +126,7 @@ namespace dc
 		}
 		
 		template<typename T>
-		CConnection<ReturnType(Args...)>
+		TConnection
 		Connect(const T* caller, ReturnType (T::* function) (Args...) const)
 		{
 			// Since we know that the member function is const, it's safe to
@@ -109,6 +134,12 @@ namespace dc
 			CConnection<ReturnType(Args...)> connection(this, const_cast<T*>(caller), function);
 			m_connections.push_front(connection);
 			return connection;
+		}
+		
+		template<typename T>
+		void Disconnect(const T& ref)
+		{
+			Disconnect(const_cast<T&>(ref));
 		}
 
 		template<typename T>
@@ -171,12 +202,12 @@ namespace dc
 			Disconnect(const_cast<T*>(ptr), function);
 		}
 
-		void Disconnect(CConnection<ReturnType(Args...)>& connection)
+		void Disconnect(TConnection& connection)
 		{
 			m_connections.remove(connection);
 		}
 		
-		void Disconnect(const CConnection<ReturnType(Args...)>& connection)
+		void Disconnect(const TConnection& connection)
 		{
 			m_connections.remove(connection);
 		}
@@ -186,28 +217,57 @@ namespace dc
 			m_connections.clear();
 		}
 		
-		const bool operator() (Args&&... args) const
+	private:
+		inline const bool Execute(Args&&... args)
 		{
-			for(const CConnection<ReturnType(Args...)>& connection : m_connections)
+			for(const auto& connection : m_connections)
 			{
 				connection(std::forward<Args>(args)...);
 			}
 			return true;
+		}
+
+		inline const bool Execute(Args&&... args) const
+		{
+			for(const auto& connection : m_connections)
+			{
+				connection(std::forward<Args>(args)...);
+			}
+			return true;
+		}
+		//------------------------------------------------------------------------------------------------------------------------
+		// Overrided operators
+		//------------------------------------------------------------------------------------------------------------------------
+	public:
+		inline const bool operator() (Args&... args)
+		{
+			return Execute(std::forward<Args>(args)...);
+		}
+		
+		inline const bool operator() (Args&... args) const
+		{
+			return Execute(std::forward<Args>(args)...);
 		}
 		
 		template<typename TArray>
 		const bool operator() (TArray& valuesArray, Args&&... args) const
 		{
 			int index = 0;
-			for(const CConnection<ReturnType(Args...)>& connection : m_connections)
+			for(const auto& connection : m_connections)
 			{
 				valuesArray[index++] = connection(std::forward<Args>(args)...);
 			}
 			return true;
 		}
 		
+		inline
+		void operator= (const CSignal<ReturnType(Args...)>& copy)
+		{
+			this(copy);
+		}
+		
 	private:
-		std::forward_list<CConnection<ReturnType(Args...)>> m_connections;
+		std::forward_list<TConnection> m_connections;
 
 	};
 }
