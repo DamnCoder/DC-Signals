@@ -12,8 +12,9 @@
 #include <functional>
 #include <assert.h>
 #include <stdio.h>
+#include <string>
 
-#include "signal.h"
+#include <signals/signal.h>
 
 ////////////////////////////////////////////////////////////////////////
 // Test types to be used as parameters
@@ -50,6 +51,16 @@ public:
 	void PrintString(const char* message)
 	{
 		printf("The member message is: %s\n", message);
+	}
+	
+	void PrintStringRef(const std::string& message)
+	{
+		printf("The member message is: %s\n", message.c_str());
+	}
+
+	void PrintStringRefConst(const std::string& message) const
+	{
+		printf("The member message is: %s\n", message.c_str());
 	}
 	
 	void PrintStringConst(const char* message) const
@@ -101,11 +112,20 @@ const bool TestFunctionReturnAndPassing(const char* message)
 	return true;
 }
 
+void FreeFunctionPrintStringRef(const std::string& message)
+{
+	printf("The free message is: %s\n", message.c_str());
+}
+
 void FreeFunctionPrintString(const char* message)
 {
 	printf("The free message is: %s\n", message);
 }
 
+void FreeFunctionCopyObject(Foo foo)
+{
+	printf("Foo passed correctly\n");
+}
 ////////////////////////////////////////////////////////////////////////
 // Test examples of use
 ////////////////////////////////////////////////////////////////////////
@@ -341,12 +361,16 @@ const bool SimpleTestHowToUseIt()
 	// Connecting const member function
 	signal.Connect(&foo, &Foo::PrintStringConst);
 	
-	succeed &= signal.ConnectionsCount() == 8;
+	succeed &= signal.Count() == 8;
+	
+	assert("[ERROR] Connecting failed" && succeed);
 	
 	printf("+ EMITTING THE SIGNAL AFTER CONNECTING\n");
 	
 	// Emission of signal
 	succeed &= signal("Hello world!");
+	
+	assert("[ERROR] Emitting failed" && succeed);
 	
 	// Disconnecting binded functions
 	// - with no parameter binded
@@ -373,7 +397,7 @@ const bool SimpleTestHowToUseIt()
 	// Disconnecting const member function
 	signal.Disconnect(&foo , &Foo::PrintStringConst);
 	
-	succeed &= signal.ConnectionsCount() == 0;
+	succeed &= signal.Count() == 0;
 	
 	// Emission of signal
 	printf("+ EMITTING THE SIGNAL AFTER DISCONNECTING\n");
@@ -382,7 +406,7 @@ const bool SimpleTestHowToUseIt()
 	
 	printf("- END HOW TO USE IT TEST\n");
 
-	assert("[ERROR] SimpleTestHowToUseIt failed" && succeed);
+	assert("[ERROR] Disconnecting failed" && succeed);
 	
 	return succeed;
 }
@@ -393,7 +417,7 @@ const bool SimpleTestHowToRecoverValues()
 	
 	bool succeed = true;
 	
-	const bool expectedValuesArray[] = { true, false, false};
+	const bool expectedValuesArray[] = { false, false, true};
 	
 	Foo foo;
 	
@@ -404,11 +428,11 @@ const bool SimpleTestHowToRecoverValues()
 	signal.Connect(&foo, &Foo::MemberFunctionReturnBool);
 	
 	// Using an std::vector
-	std::vector<bool> valuesVector(signal.ConnectionsCount());
+	std::vector<bool> valuesVector(signal.Count());
 	
 	succeed &= signal(valuesVector);
 	
-	const long valuesCount = signal.ConnectionsCount();
+	const long valuesCount = signal.Count();
 	
 	for(int i=0; i<valuesCount; ++i)
 	{
@@ -448,12 +472,42 @@ void TestDCSignal()
 {
 	printf("+++ TEST DC SIGNAL\n\n");
 	
+	Foo foo;
+	bool succeed = true;
+	
+	dc::CSignal<void(Foo)> signalCopy;
+	
+	signalCopy.Connect(&FreeFunctionCopyObject);
+	succeed &= signalCopy.Count() == 1;
+	succeed &= signalCopy(foo);
+	
+	signalCopy.Disconnect(&FreeFunctionCopyObject);
+	succeed &= signalCopy.Count() == 0;
+	
+	
+	dc::CSignal<void(const std::string&)> signalRef;
+	
+	signalRef.Connect(&FreeFunctionPrintStringRef);
+	succeed &= signalRef.Count() == 1;
+	succeed &= signalRef("Text by reference");
+	
+	signalRef.Disconnect(&FreeFunctionPrintStringRef);
+	succeed &= signalRef.Count() == 0;
+	
+	signalRef.Connect(&foo, &Foo::PrintStringRefConst);
+	succeed &= signalRef.Count() == 1;
+	succeed &= signalRef("Text by reference in a const method");
+	
+	signalRef.Disconnect(&foo, &Foo::PrintStringRefConst);
+	succeed &= signalRef.Count() == 0;
+
+	
 	const char* message = "Hello World!";
 	
-	Foo foo;
+	
 	
 	CSignalTests<void(const char*)> signalTests;
-	bool succeed = true;
+	
 	
 	// Testing free function
 	succeed &= signalTests.ConnectingFunction(&FreeFunctionPrintString, std::forward<const char*>(message));

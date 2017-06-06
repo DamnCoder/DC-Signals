@@ -51,8 +51,10 @@ namespace dc
 		//------------------------------------------------------------------------------------------------------------------------
 	protected:
 		// Generic types for functions
-		using TMemberFunctionPtr = ReturnType (GenericClass::*)(Args...);
-		using TFunctionPtr = ReturnType (*)(Args...);
+		using TMemberFunctionPtr	= ReturnType (GenericClass::*)(Args...);
+		using TFunctionPtr			= ReturnType (*)(Args...);
+		using TConnection			= CConnection<ReturnType(Args...)>;
+		using TSignal				= CSignal<ReturnType(Args...)>;
 		
 		//------------------------------------------------------------------------------------------------------------------------
 		// Getters / Setters
@@ -66,12 +68,23 @@ namespace dc
 			// m_pFunction is not zero only when you connect a free or static function
 			return m_pBindedSignal && m_pCaller && m_pMemberFunction;
 		}
-	
+
 		//------------------------------------------------------------------------------------------------------------------------
 		// Constructors / Destructors
 		//------------------------------------------------------------------------------------------------------------------------
 	public:
-		CConnection(const CConnection<ReturnType(Args...)>& copy)
+		CConnection(const TConnection& copy)
+		{
+			Clone(copy);
+		}
+		
+		~CConnection()
+		{
+			Clear();
+		}
+		
+	private:
+		void Clone(const TConnection& copy)
 		{
 			m_pBindedSignal = copy.m_pBindedSignal;
 			if(copy.m_pFunction)
@@ -87,15 +100,9 @@ namespace dc
 			}
 		}
 		
-		~CConnection()
-		{
-			Clear();
-		}
-		
 	private:
-
 		template <typename T>
-		CConnection(CSignal<ReturnType(Args...)>* signal, T& ref):
+		CConnection(TSignal* signal, T& ref):
 			m_pBindedSignal(signal),
 			m_pCaller(0),
 			m_pMemberFunction(0),
@@ -107,7 +114,7 @@ namespace dc
 		}
 		
 		template <typename T>
-		CConnection(CSignal<ReturnType(Args...)>* signal, T* functionPtr):
+		CConnection(TSignal* signal, T* functionPtr):
 			m_pBindedSignal(signal),
 			m_pCaller(0),
 			m_pMemberFunction(0),
@@ -119,7 +126,7 @@ namespace dc
 		}
 		
 		template <typename TInstance, typename TMemberFunction>
-		CConnection(CSignal<ReturnType(Args...)>* signal, TInstance* instance, TMemberFunction function):
+		CConnection(TSignal* signal, TInstance* instance, TMemberFunction function):
 			m_pBindedSignal(signal),
 			m_pCaller(0),
 			m_pMemberFunction(0),
@@ -141,7 +148,7 @@ namespace dc
 		}
 
 		inline
-		const bool operator== (const CConnection<ReturnType(Args...)>& connection) const
+		const bool operator== (const TConnection& connection) const
 		{
 			if(this == &connection) return true;
 			if(m_pCaller == connection.m_pCaller) return true;
@@ -153,17 +160,17 @@ namespace dc
 		
 		// For efficiency, prevent creation of a temporary
 		inline
-		void operator= (const CConnection<ReturnType(Args...)>& connection)
+		void operator= (const TConnection& connection)
 		{
-			this(connection);
+			Clone(connection);
 		}
 		
 	private:
 		inline
-		ReturnType operator() (Args... args) const
+		ReturnType operator() (Args&&... args) const
 		{
 			// Here is the reason why we need 'm_pCaller' to be of a generic class type, so it is compatible with the right hand operand '->*'
-			return (m_pCaller->*m_pMemberFunction)(args...);
+			return (m_pCaller->*m_pMemberFunction)(std::forward<Args>(args)...);
 		}
 		
 		template <typename TInstance, typename TMemberFunction>
@@ -217,16 +224,16 @@ namespace dc
 		// Used when we want to call back binded functions, lambdas and functors
 		template< typename T>
 		inline
-		ReturnType InvokeTemplatizedFunctionPtr(Args&&... args) const
+		ReturnType InvokeTemplatizedFunctionPtr(Args... args) const
 		{
-			return (reinterpret_cast<T*>(m_pFunction)->operator())(std::forward<Args>(args)...);
+			return (reinterpret_cast<T*>(m_pFunction)->operator())(args...);
 		}
 
 		// Used when we want to call back free or static functions
 		inline
-		ReturnType InvokeFunctionPtr(Args&&... args) const
+		ReturnType InvokeFunctionPtr(Args... args) const
 		{
-			return (*m_pFunction)(std::forward<Args>(args)...);
+			return (*m_pFunction)(args...);
 		}
 		
 		inline
@@ -239,12 +246,12 @@ namespace dc
 		}
 
 	private:
-		CSignal<ReturnType(Args...)>*	m_pBindedSignal;
+		TSignal*			m_pBindedSignal;
 		
-		GenericClass*					m_pCaller;
-		TMemberFunctionPtr				m_pMemberFunction;
+		GenericClass*		m_pCaller;
+		TMemberFunctionPtr	m_pMemberFunction;
 		
-		TFunctionPtr					m_pFunction;
+		TFunctionPtr		m_pFunction;
 	};
 } /* namespace dc */
 

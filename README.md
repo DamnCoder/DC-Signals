@@ -173,7 +173,7 @@ signal.Disconnect(&foo, &Foo::PrintString);
 The problems mainly come because we don't want to indicate the type of the class when we declare a signal. We want to write something like this:
 
 ``` cpp
-dc:CSignal<void(const bool, const char*)> signal;
+dc::CSignal<void(const bool, const char*)> signal;
 signal.Connect(&instance, &ArbitraryMemberFunction);
 ```
 
