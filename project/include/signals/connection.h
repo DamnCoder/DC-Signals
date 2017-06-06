@@ -84,23 +84,6 @@ namespace dc
 		}
 		
 	private:
-		void Clone(const TConnection& copy)
-		{
-			m_pBindedSignal = copy.m_pBindedSignal;
-			if(copy.m_pFunction)
-			{
-				m_pFunction = copy.m_pFunction;
-				Bind(this, copy.m_pMemberFunction);
-			}
-			else
-			{
-				m_pCaller = copy.m_pCaller;
-				m_pMemberFunction = copy.m_pMemberFunction;
-				m_pFunction = 0;
-			}
-		}
-		
-	private:
 		template <typename T>
 		CConnection(TSignal* signal, T& ref):
 			m_pBindedSignal(signal),
@@ -181,6 +164,22 @@ namespace dc
 			// so we don't need to keep the original type TInstance
 			m_pCaller = reinterpret_cast<GenericClass *>(instance);
 			m_pMemberFunction = reinterpret_cast<TMemberFunctionPtr>(function);
+		}
+		
+		void Clone(const TConnection& copy)
+		{
+			m_pBindedSignal = copy.m_pBindedSignal;
+			if(copy.m_pFunction)
+			{
+				m_pFunction = copy.m_pFunction;
+				Bind(this, copy.m_pMemberFunction);
+			}
+			else
+			{
+				m_pCaller = copy.m_pCaller;
+				m_pMemberFunction = copy.m_pMemberFunction;
+				m_pFunction = 0;
+			}
 		}
 		
 		//------------------------------------------------------------------------------------------------------------------------

@@ -88,6 +88,14 @@ namespace dc
 			m_connections.push_back(TConnection(this, slotRef));
 			return m_connections.back();
 		}
+		
+		template <typename T>
+		TConnection
+		Connect(const T& slotRef)
+		{
+			m_connections.push_back(TConnection(this, const_cast<T&>(slotRef)));
+			return m_connections.back();
+		}
 
 		template <typename T>
 		TConnection&
@@ -134,6 +142,12 @@ namespace dc
 					return;
 				}
 			}
+		}
+		
+		template<typename T>
+		void Disconnect(const T& ref)
+		{
+			Disconnect(const_cast<T&>(ref));
 		}
 		
 		template<typename T>
