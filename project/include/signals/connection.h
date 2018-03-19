@@ -21,8 +21,7 @@
  * - NoAvailableAlias (https://github.com/NoAvailableAlias/nano-signal-slot)
  */
 
-#ifndef DC_SIGNALS_CONNECTION_H_
-#define DC_SIGNALS_CONNECTION_H_
+#pragma once
 
 namespace dc
 {
@@ -30,8 +29,32 @@ namespace dc
 	template<typename ReturnType, typename... Args>
 	class CSignal;
 	
+	// The use of GenericClass comes as the solution to avoid specifying the class type
+	// when defining a signal when we want to store MFP (member function pointer)
+	// From pbhogan (https://github.com/pbhogan/Signals/blob/master/Delegate.h)
 	// GenericClass is a fake class, ONLY used to provide a type.
+	// It is vitally important that it is never defined, so that the compiler doesn't
+	// think it can optimize the invocation. 
+
+#if defined(_MSC_VER)
+	// Compilers using Microsoft's structure need to be treated as a special case.
+
+	// From: https://msdn.microsoft.com/en-us/library/ck561bfk.aspx
+	//
+	// C++ allows you to declare a pointer to a class member prior to the definition of the class, example:
+	//
+	// class S;
+	// int S::*p;
+	// 
+	// In the code above, p is declared to be a pointer to integer member of class S.
+	// However, class S has not yet been defined in this code; it has only been declared.
+	// When the compiler encounters such a pointer, it must make a generalized representation of the pointer.
+	// The size of the representation is dependent on the inheritance model specified.
+	class __single_inheritance GenericClass;
+#else
+	
 	class GenericClass;
+#endif
 
 	template<typename ReturnType>
 	class CConnection;
@@ -60,161 +83,61 @@ namespace dc
 		// Getters / Setters
 		//------------------------------------------------------------------------------------------------------------------------
 	public:
-		const bool IsConnected() const
-		{
-			if(m_pBindedSignal && m_pCaller && m_pMemberFunction && m_pFunction)
-				return true;
-			
-			// m_pFunction is not zero only when you connect a free or static function
-			return m_pBindedSignal && m_pCaller && m_pMemberFunction;
-		}
+		const bool IsConnected() const;
 
 		//------------------------------------------------------------------------------------------------------------------------
 		// Constructors / Destructors
 		//------------------------------------------------------------------------------------------------------------------------
 	public:
-		CConnection(const TConnection& copy)
-		{
-			Clone(copy);
-		}
-		
-		~CConnection()
-		{
-			Clear();
-		}
-		
+		~CConnection();
+
+		CConnection(const TConnection& copy);
+		CConnection(TConnection&& copy);
+
+		TConnection& operator= (const TConnection& moved);
+
 	private:
 		template <typename T>
-		CConnection(TSignal* signal, T& ref):
-			m_pBindedSignal(signal),
-			m_pCaller(0),
-			m_pMemberFunction(0),
-			m_pFunction(0)
-
-		{
-			m_pFunction = reinterpret_cast<TFunctionPtr>(&ref);
-			Bind(this, &CConnection::InvokeTemplatizedFunctionPtr<T>);
-		}
+		CConnection(TSignal* signal, T& ref);
 		
 		template <typename T>
-		CConnection(TSignal* signal, T* functionPtr):
-			m_pBindedSignal(signal),
-			m_pCaller(0),
-			m_pMemberFunction(0),
-			m_pFunction(0)
+		CConnection(TSignal* signal, T* functionPtr);
 
-		{
-			m_pFunction = functionPtr;
-			Bind(this, &CConnection::InvokeFunctionPtr);
-		}
-		
 		template <typename TInstance, typename TMemberFunction>
-		CConnection(TSignal* signal, TInstance* instance, TMemberFunction function):
-			m_pBindedSignal(signal),
-			m_pCaller(0),
-			m_pMemberFunction(0),
-			m_pFunction(0)
-		{
-			Bind(instance, function);
-		}
+		CConnection(TSignal* signal, TInstance* instance, TMemberFunction function);
 		
 		//------------------------------------------------------------------------------------------------------------------------
 		// Functions
 		//------------------------------------------------------------------------------------------------------------------------
 	public:
-		inline
-		void Disconnect()
-		{
-			// We need to dereference ourselves to properly use the disconnection
-			m_pBindedSignal->Disconnect(*this);
-			Clear();
-		}
+		void Disconnect();
 
-		inline
-		const bool operator== (const TConnection& connection) const
-		{
-			if(this == &connection) return true;
-			if(m_pCaller == connection.m_pCaller) return true;
-			
-			return m_pBindedSignal == connection.m_pBindedSignal
-				&& m_pFunction == connection.m_pFunction
-				&& m_pMemberFunction == connection.m_pMemberFunction;
-		}
-		
-		// For efficiency, prevent creation of a temporary
-		inline
-		void operator= (const TConnection& connection)
-		{
-			Clone(connection);
-		}
+		const bool operator== (const TConnection& connection) const;
 		
 	private:
-		inline
-		ReturnType operator() (Args&&... args) const
-		{
-			// Here is the reason why we need 'm_pCaller' to be of a generic class type, so it is compatible with the right hand operand '->*'
-			return (m_pCaller->*m_pMemberFunction)(std::forward<Args>(args)...);
-		}
-		
+		ReturnType operator() (Args... args) const;
+
 		template <typename TInstance, typename TMemberFunction>
-		inline
-		void Bind(TInstance* instance, TMemberFunction function)
-		{
-			// We are casting the type of 'function' to the generic type TMemberFunctionPtr
-			// so we don't need to keep the original type TInstance
-			m_pCaller = reinterpret_cast<GenericClass *>(instance);
-			m_pMemberFunction = reinterpret_cast<TMemberFunctionPtr>(function);
-		}
-		
-		void Clone(const TConnection& copy)
-		{
-			m_pBindedSignal = copy.m_pBindedSignal;
-			if(copy.m_pFunction)
-			{
-				m_pFunction = copy.m_pFunction;
-				Bind(this, copy.m_pMemberFunction);
-			}
-			else
-			{
-				m_pCaller = copy.m_pCaller;
-				m_pMemberFunction = copy.m_pMemberFunction;
-				m_pFunction = 0;
-			}
-		}
+		void Bind(TInstance* instance, TMemberFunction function);
+
+		/*
+		We use this method on copy constructor and copy assignment operator because we want only to transfer the pointers,
+		no allocations are involved
+		*/
+		void PassParameters(const TConnection& copy);
 		
 		//------------------------------------------------------------------------------------------------------------------------
 		// Equals to check wether the function passed is the same as the one keeped in the connection
 		//------------------------------------------------------------------------------------------------------------------------
-		
+
 		template <typename T, typename TMemberFunction>
-		inline
-		const bool Equals(T* caller, TMemberFunction function) const
-		{
-			return m_pCaller == reinterpret_cast<GenericClass *>(caller)
-				&& m_pMemberFunction == reinterpret_cast<TMemberFunctionPtr>(function)
-				&& m_pFunction == 0;
-		}
-		
-		template <typename T, typename TMemberFunction>
-		inline
-		const bool Equals(const T* caller, TMemberFunction function) const
-		{
-			return Equals (const_cast<T*>(caller), function);
-		}
+		const bool Equals(T* caller, TMemberFunction function) const;
 		
 		template <typename T>
-		inline
-		const bool Equals(T& reference) const
-		{
-			return Equals(reinterpret_cast<TFunctionPtr>(&reference));
-		}
+		const bool Equals(T& reference) const;
 		
 		template <typename T>
-		inline
-		const bool Equals(T* pointer) const
-		{
-			return m_pFunction == pointer;
-		}
+		const bool Equals(T* pointer) const;
 		
 		//------------------------------------------------------------------------------------------------------------------------
 		// Helper functions to transform into member function binded functions, lambdas, functors, free and static functions
@@ -222,36 +145,203 @@ namespace dc
 		
 		// Used when we want to call back binded functions, lambdas and functors
 		template< typename T>
-		inline
-		ReturnType InvokeTemplatizedFunctionPtr(Args... args) const
-		{
-			return (reinterpret_cast<T*>(m_pFunction)->operator())(args...);
-		}
+		ReturnType InvokeTemplatizedFunctionPtr(Args... args) const;
 
 		// Used when we want to call back free or static functions
-		inline
-		ReturnType InvokeFunctionPtr(Args... args) const
-		{
-			return (*m_pFunction)(args...);
-		}
+		ReturnType InvokeFunctionPtr(Args... args) const;
 		
-		inline
-		void Clear()
-		{
-			m_pBindedSignal = 0;
-			m_pCaller = 0;
-			m_pMemberFunction = 0;
-			m_pFunction = 0;
-		}
+		void Clear();
 
 	private:
-		TSignal*			m_pBindedSignal;
+		TSignal*			mp_bindedSignal;
 		
-		GenericClass*		m_pCaller;
-		TMemberFunctionPtr	m_pMemberFunction;
+		GenericClass*		mp_caller;
+		TMemberFunctionPtr	mp_memberFunction;
 		
-		TFunctionPtr		m_pFunction;
+		TFunctionPtr		mp_function;
 	};
-} /* namespace dc */
 
-#endif /* DC_SIGNALS_CONNECTION_H_ */
+	template <typename ReturnType, typename... Args>
+	const bool CConnection<ReturnType(Args...)>::IsConnected() const
+	{
+		const bool hasMFP = mp_bindedSignal && mp_caller && mp_memberFunction;
+		const bool hasFP = mp_function && hasMFP;
+
+		// mp_function is not zero only when you connect a free or static function
+		return hasFP || hasMFP;
+	}
+
+	template <typename ReturnType, typename... Args>
+	CConnection<ReturnType(Args...)>::~CConnection()
+	{
+		Clear();
+	}
+
+	template <typename ReturnType, typename... Args>
+	CConnection<ReturnType(Args...)>::CConnection(const TConnection& copy)
+	{
+		PassParameters(copy);
+	}
+
+	template <typename ReturnType, typename... Args>
+	CConnection<ReturnType(Args...)>::CConnection(TConnection&& moved)
+	{
+		mp_bindedSignal = std::move(moved.mp_bindedSignal);
+		if (moved.mp_function)
+		{
+			mp_function = std::move(moved.mp_function);
+			Bind(this, std::move(moved.mp_memberFunction));
+		}
+		else
+		{
+			mp_function = 0;
+			Bind(std::move(moved.mp_caller), std::move(moved.mp_memberFunction));
+		}
+	}
+
+	template <typename ReturnType, typename... Args>
+	CConnection<ReturnType(Args...)>& CConnection<ReturnType(Args...)>::operator= (const TConnection& copy)
+	{
+		PassParameters(copy);
+		return *this;
+	}
+
+	template <typename ReturnType, typename... Args>
+	template <typename T>
+	CConnection<ReturnType(Args...)>::CConnection(TSignal* signal, T& ref) :
+		mp_bindedSignal(signal),
+		mp_caller(0),
+		mp_memberFunction(0),
+		mp_function(0)
+
+	{
+		mp_function = reinterpret_cast<TFunctionPtr>(&ref);
+		Bind(this, &CConnection::InvokeTemplatizedFunctionPtr<T>);
+	}
+
+	template <typename ReturnType, typename... Args>
+	template <typename T>
+	CConnection<ReturnType(Args...)>::CConnection(TSignal* signal, T* functionPtr) :
+		mp_bindedSignal(signal),
+		mp_caller(0),
+		mp_memberFunction(0),
+		mp_function(0)
+
+	{
+		mp_function = functionPtr;
+		Bind(this, &CConnection::InvokeFunctionPtr);
+	}
+
+	template <typename ReturnType, typename... Args>
+	template <typename TInstance, typename TMemberFunction>
+	CConnection<ReturnType(Args...)>::CConnection(TSignal* signal, TInstance* instance, TMemberFunction function) :
+		mp_bindedSignal(signal),
+		mp_caller(0),
+		mp_memberFunction(0),
+		mp_function(0)
+	{
+		Bind(instance, function);
+	}
+
+	template <typename ReturnType, typename... Args>
+	void CConnection<ReturnType(Args...)>::Disconnect()
+	{
+		// We need to dereference ourselves to properly use the disconnection
+		mp_bindedSignal->Disconnect(*this);
+		Clear();
+	}
+
+	template <typename ReturnType, typename... Args>
+	const bool CConnection<ReturnType(Args...)>::operator== (const TConnection& connection) const
+	{
+		if (this == &connection) return true;
+		if (mp_caller == connection.mp_caller) return true;
+
+		return mp_bindedSignal == connection.mp_bindedSignal
+			&& mp_function == connection.mp_function
+			&& mp_memberFunction == connection.mp_memberFunction;
+	}
+
+	template <typename ReturnType, typename... Args>
+	ReturnType CConnection<ReturnType(Args...)>::operator() (Args... args) const
+	{
+		// Here is the reason why we need 'm_pCaller' to be of a generic class type, so it is compatible with the right hand operand '->*'
+		return (mp_caller->*mp_memberFunction)(args...);
+	}
+
+	template <typename ReturnType, typename... Args>
+	template <typename TInstance, typename TMemberFunction>
+	void CConnection<ReturnType(Args...)>::Bind(TInstance* instance, TMemberFunction function)
+	{
+		assert(sizeof(TMemberFunction) == sizeof(TMemberFunctionPtr));
+		// We are casting the type of 'function' to the generic type TMemberFunctionPtr
+		// so we don't need to keep the original type TInstance
+		mp_caller = reinterpret_cast<GenericClass *>(instance);
+		mp_memberFunction = reinterpret_cast<TMemberFunctionPtr>(function);
+	}
+
+	/*
+	We use this method on copy constructor and copy assignment operator because we want only to transfer the pointers,
+	no allocations are involved
+	*/
+	template <typename ReturnType, typename... Args>
+	void CConnection<ReturnType(Args...)>::PassParameters(const TConnection& copy)
+	{
+		mp_bindedSignal = copy.mp_bindedSignal;
+		if (copy.mp_function)
+		{
+			mp_function = copy.mp_function;
+			Bind(this, copy.mp_memberFunction);
+		}
+		else
+		{
+			mp_function = 0;
+			Bind(copy.mp_caller, copy.mp_memberFunction);
+		}
+	}
+
+	template <typename ReturnType, typename... Args>
+	template <typename T, typename TMemberFunction>
+	const bool CConnection<ReturnType(Args...)>::Equals(T* caller, TMemberFunction function) const
+	{
+		return mp_caller == reinterpret_cast<GenericClass *>(caller)
+			&& mp_memberFunction == reinterpret_cast<TMemberFunctionPtr>(function)
+			&& mp_function == 0;
+	}
+
+	template <typename ReturnType, typename... Args>
+	template <typename T>
+	const bool CConnection<ReturnType(Args...)>::Equals(T& reference) const
+	{
+		return Equals(reinterpret_cast<TFunctionPtr>(&reference));
+	}
+
+	template <typename ReturnType, typename... Args>
+	template <typename T>
+	const bool CConnection<ReturnType(Args...)>::Equals(T* pointer) const
+	{
+		return mp_function == pointer;
+	}
+
+	template <typename ReturnType, typename... Args>
+	template< typename T>
+	ReturnType CConnection<ReturnType(Args...)>::InvokeTemplatizedFunctionPtr(Args... args) const
+	{
+		return (reinterpret_cast<T*>(mp_function)->operator())(args...);
+	}
+
+	template <typename ReturnType, typename... Args>
+	ReturnType CConnection<ReturnType(Args...)>::InvokeFunctionPtr(Args... args) const
+	{
+		return (*mp_function)(args...);
+	}
+
+	template <typename ReturnType, typename... Args>
+	void CConnection<ReturnType(Args...)>::Clear()
+	{
+		mp_bindedSignal = 0;
+		mp_caller = 0;
+		mp_memberFunction = 0;
+		mp_function = 0;
+	}
+} /* namespace dc */

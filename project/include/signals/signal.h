@@ -21,8 +21,7 @@
  * - NoAvailableAlias (https://github.com/NoAvailableAlias/nano-signal-slot)
  */
 
-#ifndef DC_SIGNALS_SIGNAL_H_
-#define DC_SIGNALS_SIGNAL_H_
+#pragma once
 
 #include <vector>
 #include <iterator>
@@ -52,216 +51,239 @@ namespace dc
 		// Getters / Setters
 		//---------------------------------------------------------------------
 	public:
-		const bool IsEmpty() const
-		{
-			return Count() == 0;
-		}
-		
-		const long Count() const
-		{
-			return std::distance(m_connections.begin(), m_connections.end());
-		}
+		const bool		IsEmpty() const	{ return Count() == 0; }
+
+		const unsigned	Count() const	{ return m_connections.size(); }
 		
 		//---------------------------------------------------------------------
 		// Constructors / Destructors
 		//---------------------------------------------------------------------
 	public:
 		CSignal() {}
+
+		~CSignal() { Clear(); }
 		
-		CSignal(const TSignal& copy) : m_connections(copy.m_connections)
-		{}
+		CSignal(const TSignal& copy) : m_connections(copy.m_connections) { }
+
+		CSignal(CSignal&& other) : CSignal() { swap(*this, other); }
 		
-		~CSignal()
+		TSignal& operator= (TSignal signal);
+
+	private:
+		friend void swap(TSignal& first, TSignal& second)
 		{
-			Clear();
+			using std::swap;
+			swap(first.m_connections, second.m_connections);
 		}
 
 		//---------------------------------------------------------------------
 		// Functions
 		//---------------------------------------------------------------------
 	public:
-		
-		template <typename T>
-		TConnection&
-		Connect(T& slotRef)
-		{
-			m_connections.push_back(TConnection(this, slotRef));
-			return m_connections.back();
-		}
-		
-		template <typename T>
-		TConnection
-		Connect(const T& slotRef)
-		{
-			m_connections.push_back(TConnection(this, const_cast<T&>(slotRef)));
-			return m_connections.back();
-		}
 
 		template <typename T>
-		TConnection&
-		Connect(T* slotPtr)
-		{
-			m_connections.push_back(TConnection(this, slotPtr));
-			return m_connections.back();
-		}
+		TConnection& Connect(const T& slotRef);
+
+		template <typename T>
+		TConnection& Connect(const T* slotPtr);
 
 		template<typename T>
-		TConnection&
-		Connect(T* caller, ReturnType (T::* function) (Args...))
-		{
-			m_connections.push_back(TConnection(this, caller, function));
-			return m_connections.back();
-		}
+		TConnection& Connect(T* caller, ReturnType(T::* function) (Args...));
+		
+		template<typename T>
+		TConnection& Connect(const T* caller, ReturnType(T::* function) (Args...) const);
+		
+		template<typename T>
+		void Disconnect(const T& slotRef);
+		
+		template<typename T>
+		void Disconnect(const T* slotPtr);
+		
+		template<typename T>
+		void Disconnect(T* caller, ReturnType(T::* function) (Args...));
+		
+		template<typename T>
+		void Disconnect(const T* caller, ReturnType(T::* function) (Args...) const);
 
-		template<typename T>
-		TConnection&
-		Connect(T* caller, ReturnType (T::* function) (Args...) const)
-		{
-			m_connections.push_back(TConnection(this, caller, function));
-			return m_connections.back();
-		}
+		void Disconnect(const TConnection& connection);
 		
-		template<typename T>
-		TConnection&
-		Connect(const T* caller, ReturnType (T::* function) (Args...) const)
-		{
-			// Since we know that the member function is const, it's safe to
-			// remove the const qualifier from the 'caller' pointer with a const_cast.
-			m_connections.push_back(TConnection(this, const_cast<T*>(caller), function));
-			return m_connections.back();
-		}
+		void Clear();
+		
+		const bool operator() (Args... args);
 
-		template<typename T>
-		void Disconnect(T& ref)
-		{
-			for (const auto& connection : m_connections)
-			{
-				if(connection.Equals(ref))
-				{
-					Disconnect(connection);
-					return;
-				}
-			}
-		}
-		
-		template<typename T>
-		void Disconnect(const T& ref)
-		{
-			Disconnect(const_cast<T&>(ref));
-		}
-		
-		template<typename T>
-		void Disconnect(T* ptr)
-		{
-			for (const auto& connection : m_connections)
-			{
-				if(connection.Equals(ptr))
-				{
-					Disconnect(connection);
-					return;
-				}
-			}
-		}
-		
-		template<typename T>
-		void Disconnect(T* ptr, ReturnType (T::* function) (Args...))
-		{
-			for (const auto& connection : m_connections)
-			{
-				if(connection.Equals(ptr, function))
-				{
-					Disconnect(connection);
-					return;
-				}
-			}
-		}
-		
-		template<typename T>
-		void Disconnect(T* ptr, ReturnType (T::* function) (Args...) const)
-		{
-			for (const auto& connection : m_connections)
-			{
-				if(connection.Equals(ptr, function))
-				{
-					Disconnect(connection);
-					return;
-				}
-			}
-		}
-		
-		template<typename T>
-		void Disconnect(const T* ptr, ReturnType (T::* function) (Args...) const)
-		{
-			// Since we know that the member function is const, it's safe to
-			// remove the const qualifier from the 'caller' pointer with a const_cast.
-			Disconnect(const_cast<T*>(ptr), function);
-		}
-
-		void Disconnect(TConnection& connection)
-		{
-			typename std::vector<TConnection>::iterator end = m_connections.end();
-			typename std::vector<TConnection>::iterator it = std::find(m_connections.begin(), end, connection);
-			
-			m_connections.erase(it);
-		}
-		
-		void Disconnect(const TConnection& connection)
-		{
-			typename std::vector<TConnection>::iterator end = m_connections.end();
-			typename std::vector<TConnection>::iterator it = std::find(m_connections.begin(), end, connection);
-			
-			m_connections.erase(it);
-		}
-		
-		void Clear()
-		{
-			m_connections.clear();
-		}
-		
-		const bool operator() (Args... args)
-		{
-			for(const TConnection& connection : m_connections)
-			{
-				connection(std::forward<Args>(args)...);
-			}
-			return true;
-		}
-		
-		const bool operator() (Args... args) const
-		{
-			for(const TConnection& connection : m_connections)
-			{
-				connection(std::forward<Args>(args)...);
-			}
-			return true;
-		}
+		const bool operator() (Args... args) const;
 		
 		template<typename TArray>
-		const bool operator() (TArray& valuesArray, Args... args)
-		{
-			int index = 0;
-			for(const TConnection& connection : m_connections)
-			{
-				valuesArray[index++] = connection(std::forward<Args>(args)...);
-			}
-			return true;
-		}
+		const bool operator() (TArray& valuesArray, Args... args);
 		
 		template<typename TArray>
-		const bool operator() (TArray& valuesArray, Args... args) const
-		{
-			int index = 0;
-			for(const TConnection& connection : m_connections)
-			{
-				valuesArray[index++] = connection(std::forward<Args>(args)...);
-			}
-			return true;
-		}
+		const bool operator() (TArray& valuesArray, Args... args) const;
 		
 	private:
 		std::vector<TConnection> m_connections;
 
 	};
-}
 
-#endif /* DC_SIGNALS_SIGNAL_H_ */
+	template<typename ReturnType, typename... Args>
+	CSignal<ReturnType(Args...)>& CSignal<ReturnType(Args...)>::operator= (TSignal signal)
+	{
+		// Using copy-and-swap idiom
+		swap(*this, signal);
+
+		return *this;
+	}
+
+	template<typename ReturnType, typename... Args>
+	template <typename T>
+	CConnection<ReturnType(Args...)>& CSignal<ReturnType(Args...)>::Connect(const T& slotRef)
+	{
+		m_connections.push_back(TConnection(this, const_cast<T&>(slotRef)));
+		return m_connections.back();
+	}
+
+	template<typename ReturnType, typename... Args>
+	template <typename T>
+	CConnection<ReturnType(Args...)>& CSignal<ReturnType(Args...)>::Connect(const T* slotPtr)
+	{
+		m_connections.push_back(TConnection(this, const_cast<T*>(slotPtr)));
+		return m_connections.back();
+	}
+
+	template<typename ReturnType, typename... Args>
+	template<typename T>
+	CConnection<ReturnType(Args...)>& CSignal<ReturnType(Args...)>::Connect(T* caller, ReturnType(T::* function) (Args...))
+	{
+		m_connections.push_back(TConnection(this, caller, function));
+		return m_connections.back();
+	}
+
+	template<typename ReturnType, typename... Args>
+	template<typename T>
+	CConnection<ReturnType(Args...)>& CSignal<ReturnType(Args...)>::Connect(const T* caller, ReturnType(T::* function) (Args...) const)
+	{
+		// Since we know that the member function is const, it's safe to
+		// remove the const qualifier from the 'caller' pointer with a const_cast.
+		m_connections.push_back(TConnection(this, const_cast<T*>(caller), function));
+		return m_connections.back();
+	}
+
+	template<typename ReturnType, typename... Args>
+	template<typename T>
+	void CSignal<ReturnType(Args...)>::Disconnect(const T& ref)
+	{
+		T& nonConstRef = const_cast<T&>(ref);
+		for (const auto& connection : m_connections)
+		{
+			if (connection.Equals(nonConstRef))
+			{
+				Disconnect(connection);
+				return;
+			}
+		}
+	}
+
+	template<typename ReturnType, typename... Args>
+	template<typename T>
+	void CSignal<ReturnType(Args...)>::Disconnect(const T* ptr)
+	{
+		T* nonConstPtr = const_cast<T*>(ptr);
+		for (const auto& connection : m_connections)
+		{
+			if (connection.Equals(nonConstPtr))
+			{
+				Disconnect(connection);
+				return;
+			}
+		}
+	}
+
+	template<typename ReturnType, typename... Args>
+	template<typename T>
+	void CSignal<ReturnType(Args...)>::Disconnect(T* ptr, ReturnType(T::* function) (Args...))
+	{
+		for (const auto& connection : m_connections)
+		{
+			if (connection.Equals(ptr, function))
+			{
+				Disconnect(connection);
+				return;
+			}
+		}
+	}
+
+	template<typename ReturnType, typename... Args>
+	template<typename T>
+	void CSignal<ReturnType(Args...)>::Disconnect(const T* ptr, ReturnType(T::* function) (Args...) const)
+	{
+		// Since we know that the member function is const, it's safe to
+		// remove the const qualifier from the 'caller' pointer with a const_cast.
+		T* nonConstPtr = const_cast<T*>(ptr);
+		for (const auto& connection : m_connections)
+		{
+			if (connection.Equals(nonConstPtr, function))
+			{
+				Disconnect(connection);
+				return;
+			}
+		}
+	}
+
+	template<typename ReturnType, typename... Args>
+	void CSignal<ReturnType(Args...)>::Disconnect(const TConnection& connection)
+	{
+		const auto& end = m_connections.end();
+		const auto& it = std::find(m_connections.begin(), end, connection);
+
+		m_connections.erase(it);
+	}
+
+	template<typename ReturnType, typename... Args>
+	void CSignal<ReturnType(Args...)>::Clear()
+	{
+		m_connections.clear();
+	}
+
+	template<typename ReturnType, typename... Args>
+	const bool CSignal<ReturnType(Args...)>::operator() (Args... args)
+	{
+		for (const TConnection& connection : m_connections)
+		{
+			connection(args...);
+		}
+		return true;
+	}
+
+	template<typename ReturnType, typename... Args>
+	const bool CSignal<ReturnType(Args...)>::operator() (Args... args) const
+	{
+		for (const TConnection& connection : m_connections)
+		{
+			connection(args...);
+		}
+		return true;
+	}
+
+	template<typename ReturnType, typename... Args>
+	template<typename TArray>
+	const bool CSignal<ReturnType(Args...)>::operator() (TArray& valuesArray, Args... args)
+	{
+		int index = 0;
+		for (const TConnection& connection : m_connections)
+		{
+			valuesArray[index++] = connection(args...);
+		}
+		return true;
+	}
+
+	template<typename ReturnType, typename... Args>
+	template<typename TArray>
+	const bool CSignal<ReturnType(Args...)>::operator() (TArray& valuesArray, Args... args) const
+	{
+		int index = 0;
+		for (const TConnection& connection : m_connections)
+		{
+			valuesArray[index++] = connection(args...);
+		}
+		return true;
+	}
+}

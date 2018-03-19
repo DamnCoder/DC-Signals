@@ -42,10 +42,35 @@ public:
 	Foo(){}
 	~Foo(){}
 
+	Foo(const Foo& copy)
+	{
+		printf("Foo copy\n");
+	}
+
 public:
 	void PrintSomething()
 	{
 		printf("Member method no arguments no return value!\n");
+	}
+
+	void PassCopy(Foo foo)
+	{
+		printf("Member method copy passed\n");
+	}
+
+	void PassRef(Foo& foo)
+	{
+		printf("Member method ref passed\n");
+	}
+
+	void PassRef2(Foo& foo)
+	{
+		printf("Member method ref passed2\n");
+	}
+
+	void PrintStringBinded(const char* message)
+	{
+		printf("The member binded function message is: %s\n", message);
 	}
 
 	void PrintString(const char* message)
@@ -114,17 +139,22 @@ const bool TestFunctionReturnAndPassing(const char* message)
 
 void FreeFunctionPrintStringRef(const std::string& message)
 {
-	printf("The free message is: %s\n", message.c_str());
+	printf("The free function with const message passed by ref prints: %s\n", message.c_str());
 }
 
 void FreeFunctionPrintString(const char* message)
 {
-	printf("The free message is: %s\n", message);
+	printf("The free function receiving a const char array prints: %s\n", message);
 }
 
 void FreeFunctionCopyObject(Foo foo)
 {
-	printf("Foo passed correctly\n");
+	printf("Foo copy passed correctly\n");
+}
+
+void FreeFunctionRefObject(Foo& foo)
+{
+	printf("Foo ref passed correctly\n");
 }
 ////////////////////////////////////////////////////////////////////////
 // Test examples of use
@@ -143,6 +173,7 @@ public:
 	template <typename T>
 	const bool ConnectingFunction(T& slotRef, Args&&... args) const
 	{
+		printf("+ AUTOMATIC CONNECTION FUNCTION PASSED BY REF TEST\n");
 		dc::CSignal<ReturnType(Args...)> signal;
 		auto connection = signal.Connect(slotRef);
 		
@@ -156,6 +187,7 @@ public:
 	template <typename T>
 	const bool DisconnectingFunction(T& slotRef) const
 	{
+		printf("+ AUTOMATIC DISCONNECTION FUNCTION BY REF TEST\n");
 		bool succeed = true;
 		
 		dc::CSignal<ReturnType(Args...)> signal;
@@ -179,6 +211,7 @@ public:
 	template <typename T>
 	const bool ConnectingFunction(T* slotPtr, Args&&... args) const
 	{
+		printf("+ AUTOMATIC CONNECTION FUNCTION PASSED BY PTR TEST\n");
 		dc::CSignal<ReturnType(Args...)> signal;
 		auto connection = signal.Connect(slotPtr);
 		
@@ -192,6 +225,7 @@ public:
 	template <typename T>
 	const bool DisconnectingFunction(T* slotPtr) const
 	{
+		printf("+ AUTOMATIC DISCONNECTION FUNCTION BY PTR TEST\n");
 		bool succeed = true;
 		
 		dc::CSignal<ReturnType(Args...)> signal;
@@ -212,14 +246,14 @@ public:
 		return succeed;
 	}
 
-	template<typename T>
-	const bool ConnectingMemberFunction(T* caller, ReturnType(T::* function)(Args...), Args&&... args) const
+	template<typename T, typename... FuncArgs>
+	const bool ConnectingMemberFunction(T* caller, ReturnType(T::* function)(Args...), FuncArgs&&... args) const
 	{
 		dc::CSignal<ReturnType(Args...)> signal;
 		auto connection = signal.Connect(caller, function);
 		
 		// We check if it is connected and if it executes correctly the signal
-		const bool succeed = connection.IsConnected() && signal(std::forward<Args>(args)...);
+		const bool succeed = connection.IsConnected() && signal(std::forward<FuncArgs>(args)...);
 		
 		assert("[ERROR] Connecting test failed" && succeed);
 		return succeed;
@@ -248,14 +282,14 @@ public:
 		return succeed;
 	}
 	
-	template<typename T>
-	const bool ConnectingMemberFunction(T* caller, ReturnType(T::* function)(Args...) const, Args&&... args) const
+	template<typename T, typename... FuncArgs>
+	const bool ConnectingMemberFunction(T* caller, ReturnType(T::* function)(Args...) const, FuncArgs&&... args) const
 	{
 		dc::CSignal<ReturnType(Args...)> signal;
 		auto connection = signal.Connect(caller, function);
 		
 		// We check if it is connected and if it executes correctly the signal
-		const bool succeed = connection.IsConnected() && signal(std::forward<Args>(args)...);
+		const bool succeed = connection.IsConnected() && signal(std::forward<FuncArgs>(args)...);
 		
 		assert("[ERROR] Connecting test failed" && succeed);
 		return succeed;
@@ -284,14 +318,14 @@ public:
 		return succeed;
 	}
 	
-	template<typename T>
-	const bool ConnectingMemberFunction(const T* caller, ReturnType(T::* function)(Args...) const, Args&&... args) const
+	template<typename T, typename... FuncArgs>
+	const bool ConnectingMemberFunction(const T* caller, ReturnType(T::* function)(Args...) const, FuncArgs&&... args) const
 	{
 		dc::CSignal<ReturnType(Args...)> signal;
 		auto connection = signal.Connect(caller, function);
 		
 		// We check if it is connected and if it executes correctly the signal
-		const bool succeed = connection.IsConnected() && signal(std::forward<Args>(args)...);
+		const bool succeed = connection.IsConnected() && signal(std::forward<FuncArgs>(args)...);
 		
 		assert("[ERROR] Connecting test failed" && succeed);
 		return succeed;
@@ -400,7 +434,7 @@ const bool SimpleTestHowToUseIt()
 	succeed &= signal.Count() == 0;
 	
 	// Emission of signal
-	printf("+ EMITTING THE SIGNAL AFTER DISCONNECTING\n");
+	printf("+ EMITTING THE SIGNAL AFTER DISCONNECTING (nothing should happen)\n");
 	
 	succeed &= signal("Hello");
 	
@@ -468,62 +502,29 @@ const bool SimpleTestHowToRecoverValues()
 	return succeed;
 }
 
-void TestDCSignal()
+const bool SimpleSignalTests()
 {
-	printf("+++ TEST DC SIGNAL\n\n");
-	
-	Foo foo;
 	bool succeed = true;
 	
-	dc::CSignal<void(Foo)> signalCopy;
-	
-	signalCopy.Connect(&FreeFunctionCopyObject);
-	succeed &= signalCopy.Count() == 1;
-	succeed &= signalCopy(foo);
-	
-	signalCopy.Disconnect(&FreeFunctionCopyObject);
-	succeed &= signalCopy.Count() == 0;
-	
-	
-	dc::CSignal<void(const std::string&)> signalRef;
-	
-	signalRef.Connect(&FreeFunctionPrintStringRef);
-	succeed &= signalRef.Count() == 1;
-	succeed &= signalRef("Text by reference");
-	
-	signalRef.Disconnect(&FreeFunctionPrintStringRef);
-	succeed &= signalRef.Count() == 0;
-	
-	signalRef.Connect(&foo, &Foo::PrintStringRefConst);
-	succeed &= signalRef.Count() == 1;
-	succeed &= signalRef("Text by reference in a const method");
-	
-	signalRef.Disconnect(&foo, &Foo::PrintStringRefConst);
-	succeed &= signalRef.Count() == 0;
-
-	
+	Foo foo;
 	const char* message = "Hello World!";
-	
-	
-	
 	CSignalTests<void(const char*)> signalTests;
-	
-	
+
 	// Testing free function
 	succeed &= signalTests.ConnectingFunction(&FreeFunctionPrintString, std::forward<const char*>(message));
 	succeed &= signalTests.DisconnectingFunction(&FreeFunctionPrintString);
-	
+
 	// Testing static function
 	succeed &= signalTests.ConnectingFunction(&Foo::StaticPrintString, std::forward<const char*>(message));
 	succeed &= signalTests.DisconnectingFunction(&Foo::StaticPrintString);
-	
+
 	// Testing binded function with no parameters attached
-	auto functionBindedWithoutBindedParams = std::bind(&Foo::PrintString, &foo, std::placeholders::_1);
+	auto functionBindedWithoutBindedParams = std::bind(&Foo::PrintStringBinded, &foo, std::placeholders::_1);
 	succeed &= signalTests.ConnectingFunction(functionBindedWithoutBindedParams, std::forward<const char*>(message));
 	succeed &= signalTests.DisconnectingFunction(functionBindedWithoutBindedParams);
 	
 	// Testing binded function with parameters attached
-	auto functionBindedWithBindedParams = std::bind(&Foo::PrintString, &foo, "Binded parameter");
+	auto functionBindedWithBindedParams = std::bind(&Foo::PrintStringBinded, &foo, "Binded parameter");
 	succeed &= signalTests.ConnectingFunction(functionBindedWithBindedParams, std::forward<const char*>(message));
 	succeed &= signalTests.DisconnectingFunction(functionBindedWithBindedParams);
 	
@@ -541,8 +542,9 @@ void TestDCSignal()
 	succeed &= signalTests.DisconnectingFunction(functor);
 	
 	// Testing member function
-	succeed &= signalTests.ConnectingMemberFunction(&foo, &Foo::PrintString, "Message for member function");
-	succeed &= signalTests.DisconnectingMemberFunction(&foo, &Foo::PrintString);
+	const char* msgForAMemberFunc = "Message for a member function";
+	succeed &= signalTests.ConnectingMemberFunction(&foo, &Foo::PrintString, msgForAMemberFunc);
+	//succeed &= signalTests.DisconnectingMemberFunction(&foo, &Foo::PrintString);
 	
 	// Testing const member function
 	succeed &= signalTests.ConnectingMemberFunction(&foo, &Foo::PrintStringConst, "Message for const member function");
@@ -550,11 +552,119 @@ void TestDCSignal()
 	
 	// Testing const caller with const member function
 	const Foo fooConst;
-	succeed &= signalTests.ConnectingMemberFunction(&fooConst, &Foo::PrintStringConst, "Message for const caller and const member function");
-	succeed &= signalTests.DisconnectingMemberFunction(&fooConst, &Foo::PrintStringConst);
+	//succeed &= signalTests.ConnectingMemberFunction(&fooConst, &Foo::PrintStringConst, "Message for const caller and const member function");
+	//succeed &= signalTests.DisconnectingMemberFunction(&fooConst, &Foo::PrintStringConst);
+	
+	return succeed;
+}
+
+const bool SignalTestPassingCopyParameter()
+{
+	printf("+ INIT HOW TO PASS PARAMETERS BY COPY TEST\n");
+	bool succeed = true;
+
+	Foo foo;
+	dc::CSignal<void(Foo)> signalCopy;
+
+	signalCopy.Connect(&FreeFunctionCopyObject);
+	succeed &= signalCopy.Count() == 1;
+
+	succeed &= signalCopy(foo);
+
+	signalCopy.Disconnect(&FreeFunctionCopyObject);
+	succeed &= signalCopy.Count() == 0;
+
+	signalCopy.Connect(&foo, &Foo::PassCopy);
+	succeed &= signalCopy.Count() == 1;
+	
+	succeed &= signalCopy(foo);
+
+	signalCopy.Disconnect(&foo, &Foo::PassCopy);
+	succeed &= signalCopy.Count() == 0;
+
+	assert(succeed && "[Passing parameter by copy tests FAILED]");
+
+	printf("- END HOW TO PASS PARAMETERS BY COPY TEST\n");
+	return succeed;
+}
+
+const bool SignalTestPassingRefParameter()
+{
+	printf("+ INIT HOW TO PASS PARAMETERS BY REF TEST\n");
+	bool succeed = true;
+
+	Foo foo;
+	dc::CSignal<void(const std::string&)> signalRef;
+
+	signalRef.Connect(&FreeFunctionPrintStringRef);
+	succeed &= signalRef.Count() == 1;
+
+	// Execution
+	succeed &= signalRef("Text by reference");
+
+	signalRef.Disconnect(&FreeFunctionPrintStringRef);
+	succeed &= signalRef.Count() == 0;
+
+	signalRef.Connect(&foo, &Foo::PrintStringRefConst);
+	succeed &= signalRef.Count() == 1;
+
+	// Execution
+	succeed &= signalRef("Text by reference in a const method");
+
+	signalRef.Disconnect(&foo, &Foo::PrintStringRefConst);
+	succeed &= signalRef.Count() == 0;
+
+	assert(succeed && "[Passing parameter by ref tests FAILED]");
+
+	printf("- END HOW TO PASS PARAMETERS BY COPY TEST\n");
+	return succeed;
+}
+
+const bool TestSignalCopy()
+{
+	Foo foo;
+	dc::CSignal<void(Foo&)> signal;
+
+	signal.Connect(&FreeFunctionRefObject);
+	signal.Connect(&foo, &Foo::PassRef);
+
+	assert(signal.Count() == 2 && "Connections where not well created");
+
+	dc::CSignal<void(Foo&)> initiallyEmptySignal = signal;
+	assert(initiallyEmptySignal.Count() == 2 && "Connections where not well created");
+
+	dc::CSignal<void(Foo&)> initiallyWithConnectionsSignal;
+	initiallyWithConnectionsSignal.Connect(&FreeFunctionRefObject);
+	initiallyWithConnectionsSignal.Connect(&foo, &Foo::PassRef2);
+	assert(initiallyWithConnectionsSignal.Count() == 2 && "Connections where not well created");
+
+	initiallyWithConnectionsSignal = signal;
+
+	assert(signal(foo) && "Execution failed");
+
+	//assert(signalCopy1(foo) && "Execution failed");
+
+	//assert(signalCopy2(foo) && "Execution failed");
+
+	return true;
+}
+
+void TestDCSignal()
+{
+	printf("+++ TEST DC SIGNAL\n\n");
+	
+	Foo foo;
+	bool succeed = true;
+
+	succeed &= TestSignalCopy();
+	
+	succeed &= SignalTestPassingCopyParameter();
+	succeed &= SignalTestPassingRefParameter();
 	
 	succeed &= SimpleTestHowToUseIt();
 	succeed &= SimpleTestHowToRecoverValues();
+
+	succeed &= SimpleSignalTests();
 	
 	if(succeed)
 	{
@@ -564,7 +674,7 @@ void TestDCSignal()
 	{
 		printf("\n- TESTS FAILED\n\n");
 	}
-	
+	//*/
 	printf("---END TEST DC SIGNAL\n");
 }
 
