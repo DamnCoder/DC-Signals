@@ -10,9 +10,9 @@ This [Signals - Slot][signals_slots_wikipedia] implementation is based on the fo
 The purpose was to have a simplified version, using [variadic templates][variadic_templates], more easily understandable and readable. 
 The number of classes and types have been reduced to only two (CSignal and CConnection).
 
-I liked the way *pbhogan* implemented it, but it didn't use variadic templates so it has implemented the solution up till 8 times, each one for a different number of arguments. His solution for the problem is really amazing and I highly recommend to spend some time going through the code analizing all the tricks and tips it provide.
+I liked the way *pbhogan* implemented it, but it didn't use variadic templates so it has implemented the solution up till 8 times, each one for a different number of arguments. His solution for the problem is really amazing and I highly recommend to spend some time going through the code analizing all the tricks and tips it provides.
 
-On the other hand even though *NoAvailableAlias* uses variadic templates and implements the solution in a very clever and elegant way. I didn't like the way it worked for member functions because it makes you indicate the type of the class, the signature of the function and pass the instance, making the connection a bit messy.
+On the other hand even though *NoAvailableAlias* uses variadic templates and implements the solution in a very clever and elegant way. I didn't like the way it forces you to declare a connection for member functions. It makes you indicate the type of the class, the signature of the function and pass the instance as argument, making it (to my taste) a bit messy.
 
 Example from nano-signal-slot:
 
@@ -21,19 +21,27 @@ Nano::Signal<bool(const char*)> signal_one;
 signal_one.connect<Foo, &Foo::handler_a>(foo);
 ```
 
-So I have mixed the best things of both. It has also being built imitating the way [signals2][boost_signals2] is used within the boost library (everytime you make a connection it returns a CConnection and you can use that connection to disconect it from the signal).
+So what I have tries is to mix the best things of both. It has also being built imitating the way [signals2][boost_signals2] is used within the boost library (everytime you make a connection it returns a CConnection and you can use it to disconnect it from the signal).
+
+Example of how I wanted to use it:
+
+``` cpp
+dc::CSignal<void(Foo&)> signal;
+signal.Connect(&FreeFunctionRefObject);
+signal.Connect(&foo, &Foo::PassRef);
+```
 
 ## Requires
 
-The implementation relies on C++11 features like `std::addressof` or `std::forward`.
+The implementation relies on C++11 features like `std::move` or `std::forward` and variadic templates.
 
 ## Working with it
 
-If you just want to use this code straight away in your project you just need to add the folder [*signals*][dc_signals_repo_folder] into your project.
+If you want to use this code straight away in your project you just need to add the folder [*signals*][dc_signals_repo_folder] into your project.
 
-In case you would like to work with it to make changes or improve it, there are included some scripts to easily create (with **CMake**) either an **Xcode** or **Eclipse CDT** project. The projects are done so they create an executable which tests that everything works fine after any change.
+In case you would like to work with it to make changes or improve it, there are included some scripts to easily create (with **CMake**) either an **Xcode**, **Eclipse CDT** or **Visual Studio** project. The projects are done so they create an executable which tests that everything works fine after any change.
 
-As a warning, the code has been only tested in OSX and Ubuntu and is distributed under the [MIT license][mit_license].
+As a warning, the code has been only tested in OSX, Ubuntu and Visual Studio. It is distributed under the [MIT license][mit_license].
 
 ## Examples of use
 
@@ -170,11 +178,11 @@ signal.Disconnect(&foo, &Foo::PrintString);
 
 ### The idea
 
-The problems mainly come because we don't want to indicate the type of the class when we declare a signal. We want to write something like this:
+The problems mainly comes because we don't want to indicate the type of the class when we declare a signal. We want to write something like this:
 
 ``` cpp
 dc::CSignal<void(const bool, const char*)> signal;
-signal.Connect(&instance, &ArbitraryMemberFunction);
+signal.Connect(&instance, &Foo::ArbitraryMemberFunction);
 ```
 
 So the idea is to cast the callers to a common `GenericClass*` and the functions to a `GenericClass::*` member function. The tricky part comes in the cases of *binded functions, lambdas, functors, and with free and static functions*, where we also need to keep the function pointer apart.
