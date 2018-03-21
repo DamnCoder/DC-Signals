@@ -23,6 +23,8 @@
 
 #pragma once
 
+#include <utility>
+
 namespace dc
 {
 	// Forward declaration for the signals

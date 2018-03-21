@@ -26,6 +26,7 @@
 #include <vector>
 #include <iterator>
 #include <utility>
+#include <algorithm>
 
 #include "connection.h"
 
@@ -65,7 +66,7 @@ namespace dc
 		
 		CSignal(const TSignal& copy) : m_connections(copy.m_connections) { }
 
-		CSignal(CSignal&& other) : CSignal() { swap(*this, other); }
+		CSignal(CSignal&& other) : TSignal() { swap(*this, other); }
 		
 		TSignal& operator= (TSignal signal);
 
