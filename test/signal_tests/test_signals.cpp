@@ -24,19 +24,38 @@
  *      Author: jorge
  */
 
-#include <gtest/gtest.h>
+#include "test_signals.h"
+
 #include <signals/signal.h>
+#include <spdlog/sinks/stdout_sinks.h>
 #include <functional>
 #include <utility>
-#include "signal_test_utils.h"
 
-TEST(Signals, TestAutoreleaseConnections)
+void Signals::SetUpTestCase()
+{
+    auto console = spdlog::stdout_logger_mt("console");
+    spdlog::set_default_logger(console);
+}
+
+void Signals::TearDownTestCase()
 {
 }
 
-TEST(Signals, TestConnectingFunctions)
+void Signals::SetUp()
 {
-    printf("+ INIT HOW TO USE IT TEST\n");
+}
+
+void Signals::TearDown()
+{
+}
+
+TEST_F(Signals, AutoreleaseConnections)
+{
+}
+
+TEST_F(Signals, ConnectingFunctions)
+{
+    spdlog::info("+ INIT HOW TO USE SIGNALS");
 
     Foo foo;
 
@@ -53,7 +72,7 @@ TEST(Signals, TestConnectingFunctions)
 
     // Connecting lambda
     std::function<void(const char*)> stdFunctionParameter = [](const char* message) {
-        printf("The std::function message: %s\n", message);
+        spdlog::info("The std::function message: {}", message);
     };
     signal.Connect(stdFunctionParameter);
 
@@ -109,15 +128,15 @@ TEST(Signals, TestConnectingFunctions)
 
     // Disconnecting const member function
     signal.Disconnect(&foo, &Foo::PrintStringConst);
-    EXPECT_EQ(signal.Count(), 0);
+    EXPECT_TRUE(signal.Empty());
 
     // Emission of signal
-    printf("+ EMITTING THE SIGNAL AFTER DISCONNECTING (nothing should happen)\n");
+    spdlog::info("+ EMITTING THE SIGNAL AFTER DISCONNECTING (nothing should happen)\n");
 
     EXPECT_TRUE(signal("Hello"));
 }
 
-TEST(Signals, TestCopy)
+TEST_F(Signals, Copy)
 {
     Foo foo;
     dc::CSignal<void(Foo&)> signal;
@@ -141,7 +160,7 @@ TEST(Signals, TestCopy)
     ASSERT_TRUE(initiallyWithConnectionsSignal(foo));
 }
 
-TEST(Signals, TestMove)
+TEST_F(Signals, Move)
 {
     Foo foo;
     dc::CSignal<void(Foo&)> signal;
@@ -169,6 +188,96 @@ TEST(Signals, TestMove)
     ASSERT_TRUE(signal(foo));
     ASSERT_TRUE(initiallyEmptySignal(foo));
     ASSERT_TRUE(initiallyWithConnectionsSignal(foo));
+}
+
+TEST_F(Signals, PassingRefParameter)
+{
+    Foo foo;
+    dc::CSignal<void(const std::string&)> signal;
+
+    signal.Connect(&FreeFunctionPrintStringRef);
+    EXPECT_EQ(signal.Count(), 1);
+
+    // Execution
+    const std::string paramByRef = "Text by reference";
+    EXPECT_TRUE(signal(paramByRef));
+
+    signal.Disconnect(&FreeFunctionPrintStringRef);
+    EXPECT_TRUE(signal.Empty());
+
+    signal.Connect(&foo, &Foo::PrintStringRefConst);
+    EXPECT_EQ(signal.Count(), 1);
+
+    // Execution
+    const std::string paramByRefConstMethod = "Text by reference in a const method";
+    EXPECT_TRUE(signal(paramByRefConstMethod));
+
+    signal.Disconnect(&foo, &Foo::PrintStringRefConst);
+    EXPECT_TRUE(signal.Empty());
+}
+
+TEST_F(Signals, PassingCopyParameter)
+{
+    Foo foo;
+    dc::CSignal<void(Foo)> signal;
+
+    signal.Connect(&FreeFunctionCopyObject);
+    EXPECT_EQ(signal.Count(), 1);
+
+    EXPECT_TRUE(signal(foo));
+
+    signal.Disconnect(&FreeFunctionCopyObject);
+    EXPECT_TRUE(signal.Empty());
+
+    signal.Connect(&foo, &Foo::PassCopy);
+    EXPECT_EQ(signal.Count(), 1);
+
+    EXPECT_TRUE(signal(foo));
+
+    signal.Disconnect(&foo, &Foo::PassCopy);
+    EXPECT_TRUE(signal.Empty());
+}
+
+template <typename ListType>
+void checkArrayValidity(const ListType& valueList, const bool* expectedValuesArray, const size_t size)
+{
+    for (size_t i = 0; i < size; ++i)
+    {
+        const bool returnedValue = valueList[i];
+        const bool expectedValue = expectedValuesArray[i];
+
+        EXPECT_EQ(returnedValue, expectedValue);
+
+        spdlog::info("Returning value was {}", returnedValue);
+    }
+}
+
+TEST_F(Signals, RecoverValues)
+{
+    const bool expectedValuesArray[] = {false, false, true};
+    Foo foo;
+
+    dc::CSignal<bool(void)> signal;
+
+    signal.Connect(&FreeFunctionReturnBool);
+    signal.Connect(&Foo::StaticFunctionReturnBool);
+    signal.Connect(&foo, &Foo::MemberFunctionReturnBool);
+
+    // Using an std::vector
+    std::vector<bool> valuesVector(signal.Count(), false);
+
+    EXPECT_TRUE(signal(valuesVector));
+
+    const auto valuesCount = signal.Count();
+    checkArrayValidity(valuesVector, expectedValuesArray, valuesCount);
+
+    // Using an array
+    bool* valuesArray = new bool[valuesCount];
+
+    EXPECT_TRUE(signal(valuesArray));
+    checkArrayValidity(valuesArray, expectedValuesArray, valuesCount);
+
+    delete[] valuesArray;
 }
 
 int main(int argc, char** argv)

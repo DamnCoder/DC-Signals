@@ -60,7 +60,7 @@ public:
     //---------------------------------------------------------------------
 public:
     bool Empty() const { return Count() == 0; }
-    unsigned Count() const { return m_connections.size(); }
+    size_t Count() const { return m_connections.size(); }
 
     //---------------------------------------------------------------------
     // Constructors / Destructors
@@ -90,13 +90,11 @@ public:
 
     template <typename T>
     TConnection& Connect(T* caller, ReturnType (T::*function)(Args...));
-
-    template <typename T>
-    TConnection& Connect(const T* caller, ReturnType (T::*function)(Args...) const);
-
     template <typename T>
     void Disconnect(T* caller, ReturnType (T::*function)(Args...));
 
+    template <typename T>
+    TConnection& Connect(const T* caller, ReturnType (T::*function)(Args...) const);
     template <typename T>
     void Disconnect(const T* caller, ReturnType (T::*function)(Args...) const);
 
@@ -170,17 +168,6 @@ CConnection<ReturnType(Args...)>& CSignal<ReturnType(Args...)>::Connect(T* calle
 
 template <typename ReturnType, typename... Args>
 template <typename T>
-CConnection<ReturnType(Args...)>& CSignal<ReturnType(Args...)>::Connect(const T* caller,
-                                                                        ReturnType (T::*function)(Args...) const)
-{
-    // Since we know that the member function is const, it's safe to
-    // remove the const qualifier from the 'caller' pointer with a const_cast.
-    m_connections.push_back(TConnection(this, const_cast<T*>(caller), function));
-    return m_connections.back();
-}
-
-template <typename ReturnType, typename... Args>
-template <typename T>
 void CSignal<ReturnType(Args...)>::Disconnect(T* ptr, ReturnType (T::*function)(Args...))
 {
     for (const auto& connection : m_connections)
@@ -191,6 +178,17 @@ void CSignal<ReturnType(Args...)>::Disconnect(T* ptr, ReturnType (T::*function)(
             return;
         }
     }
+}
+
+template <typename ReturnType, typename... Args>
+template <typename T>
+CConnection<ReturnType(Args...)>& CSignal<ReturnType(Args...)>::Connect(const T* caller,
+                                                                        ReturnType (T::*function)(Args...) const)
+{
+    // Since we know that the member function is const, it's safe to
+    // remove the const qualifier from the 'caller' pointer with a const_cast.
+    m_connections.push_back(TConnection(this, const_cast<T*>(caller), function));
+    return m_connections.back();
 }
 
 template <typename ReturnType, typename... Args>

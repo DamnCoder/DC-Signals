@@ -101,9 +101,10 @@ public:
     ~CConnection();
 
     CConnection(const TConnection& copy);
-    CConnection(TConnection&& copy);
+    TConnection& operator=(const TConnection& copy);
 
-    TConnection& operator=(const TConnection& moved);
+    CConnection(TConnection&& move);
+    TConnection& operator=(TConnection&& move);
 
 private:
     template <typename T>
@@ -193,22 +194,6 @@ CConnection<ReturnType(Args...)>::CConnection(const TConnection& copy)
 }
 
 template <typename ReturnType, typename... Args>
-CConnection<ReturnType(Args...)>::CConnection(TConnection&& moved)
-{
-    mp_bindedSignal = std::move(moved.mp_bindedSignal);
-    if (moved.mp_function)
-    {
-        mp_function = std::move(moved.mp_function);
-        Bind(this, std::move(moved.mp_memberFunction));
-    }
-    else
-    {
-        mp_function = 0;
-        Bind(std::move(moved.mp_caller), std::move(moved.mp_memberFunction));
-    }
-}
-
-template <typename ReturnType, typename... Args>
 CConnection<ReturnType(Args...)>& CConnection<ReturnType(Args...)>::operator=(const TConnection& copy)
 {
     PassParameters(copy);
@@ -216,12 +201,28 @@ CConnection<ReturnType(Args...)>& CConnection<ReturnType(Args...)>::operator=(co
 }
 
 template <typename ReturnType, typename... Args>
+CConnection<ReturnType(Args...)>::CConnection(TConnection&& move)
+{
+    mp_bindedSignal = std::move(move.mp_bindedSignal);
+    if (move.mp_function)
+    {
+        mp_function = std::move(move.mp_function);
+        Bind(this, std::move(move.mp_memberFunction));
+    }
+    else
+    {
+        mp_function = nullptr;
+        Bind(std::move(move.mp_caller), std::move(move.mp_memberFunction));
+    }
+}
+
+template <typename ReturnType, typename... Args>
 template <typename T>
 CConnection<ReturnType(Args...)>::CConnection(TSignal* signal, T& ref)
     : mp_bindedSignal(signal)
-    , mp_caller(0)
-    , mp_memberFunction(0)
-    , mp_function(0)
+    , mp_caller(nullptr)
+    , mp_memberFunction(nullptr)
+    , mp_function(nullptr)
 
 {
     mp_function = reinterpret_cast<TFunctionPtr>(&ref);
@@ -232,9 +233,9 @@ template <typename ReturnType, typename... Args>
 template <typename T>
 CConnection<ReturnType(Args...)>::CConnection(TSignal* signal, T* functionPtr)
     : mp_bindedSignal(signal)
-    , mp_caller(0)
-    , mp_memberFunction(0)
-    , mp_function(0)
+    , mp_caller(nullptr)
+    , mp_memberFunction(nullptr)
+    , mp_function(nullptr)
 
 {
     mp_function = functionPtr;
@@ -245,9 +246,9 @@ template <typename ReturnType, typename... Args>
 template <typename TInstance, typename TMemberFunction>
 CConnection<ReturnType(Args...)>::CConnection(TSignal* signal, TInstance* instance, TMemberFunction function)
     : mp_bindedSignal(signal)
-    , mp_caller(0)
-    , mp_memberFunction(0)
-    , mp_function(0)
+    , mp_caller(nullptr)
+    , mp_memberFunction(nullptr)
+    , mp_function(nullptr)
 {
     Bind(instance, function);
 }
